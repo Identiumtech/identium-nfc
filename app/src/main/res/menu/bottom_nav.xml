@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/tab_read"
+        android:icon="@drawable/ic_read"
+        android:title="@string/tab_read" />
+    <item
+        android:id="@+id/tab_write"
+        android:icon="@drawable/ic_write"
+        android:title="@string/tab_write" />
+    <item
+        android:id="@+id/tab_other"
+        android:icon="@drawable/ic_other"
+        android:title="@string/tab_other" />
+    <item
+        android:id="@+id/tab_tasks"
+        android:icon="@drawable/ic_tasks"
+        android:title="@string/tab_tasks" />
+</menu>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Identium NFC</string>
+    <string name="app_tagline">Read • Write • Manage</string>
+
+    <string name="tab_read">Read</string>
+    <string name="tab_write">Write</string>
+    <string name="tab_other">Other</string>
+    <string name="tab_tasks">Tasks</string>
+
+    <string name="action_read_tag">Read tag</string>
+    <string name="action_write_tag">Write</string>
+    <string name="action_other">Other</string>
+    <string name="action_tasks">Tasks</string>
+
+    <string name="ready_for_tag">Tap a tag to begin</string>
+    <string name="approach_tag">Approach an NFC tag…</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
+    <string name="save">Save</string>
+    <string name="reset">Reset</string>
+    <string name="write">Write</string>
+    <string name="add_record">Add a record</string>
+    <string name="lock_tag">Make tag read-only</string>
+    <string name="protect_with_password">Password protect</string>
+    <string name="set_password">Set password</string>
+    <string name="remove_password">Remove password</string>
+    <string name="copy_tag">Copy tag</string>
+    <string name="clone_tag">Clone tag (UID)</string>
+    <string name="erase_tag">Erase tag</string>
+    <string name="format_tag">Format memory</string>
+    <string name="dump_memory">Dump memory</string>
+    <string name="import_excel">Import from Excel/CSV</string>
+    <string name="add_task">Add a task</string>
+
+    <!-- Record types -->
+    <string name="record_url">URL / URI</string>
+    <string name="record_text">Plain text</string>
+    <string name="record_vcard">Business card (vCard)</string>
+    <string name="record_wifi">Wi-Fi network</string>
+    <string name="record_bluetooth">Bluetooth</string>
+    <string name="record_geo">Geolocation</string>
+    <string name="record_email">Email</string>
+    <string name="record_sms">SMS</string>
+    <string name="record_phone">Phone number</string>
+    <string name="record_address">Address</string>
+    <string name="record_app">Android Application</string>
+    <string name="record_mime">Custom MIME / Data</string>
+
+    <!-- Tasks -->
+    <string name="task_open_url">Open URL</string>
+    <string name="task_dial">Dial number</string>
+    <string name="task_send_sms">Send SMS</string>
+    <string name="task_email">Email</string>
+    <string name="task_wifi">Connect Wi-Fi</string>
+    <string name="task_bluetooth">Pair Bluetooth</string>
+    <string name="task_app">Run application</string>
+    <string name="task_settings">Open settings</string>
+    <string name="task_alarm">Set alarm</string>
+    <string name="task_volume">Set volume</string>
+    <string name="task_brightness">Set brightness</string>
+    <string name="task_timer">Set timer</string>
+    <string name="task_event">Calendar event</string>
+
+    <string name="hint_url">https://example.com</string>
+    <string name="hint_text">Type your text…</string>
+    <string name="hint_phone">+1 555 123 4567</string>
+    <string name="hint_email">name@example.com</string>
+    <string name="hint_message">Message body</string>
+    <string name="hint_subject">Subject</string>
+    <string name="hint_ssid">Network name (SSID)</string>
+    <string name="hint_password">Password</string>
+    <string name="hint_full_name">Full name</string>
+    <string name="hint_company">Company</string>
+    <string name="hint_address">Address</string>
+    <string name="hint_pkg">Package name e.g. com.example.app</string>
+
+    <string name="nfc_unsupported">This device does not support NFC.</string>
+    <string name="nfc_disabled">NFC is turned off. Open settings to enable it.</string>
+    <string name="nfc_enable">Enable NFC</string>
+
+    <string name="status_idle">Idle</string>
+    <string name="status_waiting">Waiting for tag…</string>
+    <string name="status_working">Working…</string>
+    <string name="status_done">Done</string>
+    <string name="status_failed">Failed</string>
+
+    <string name="payload_size">Payload size</string>
+    <string name="bytes_format">%1$d bytes</string>
+
+    <string name="copyright">© Identium</string>
+
+    <string name="history">Tag history</string>
+    <string name="verify_tag">Verify tag</string>
+    <string name="settings">Settings</string>
+    <string name="templates">Templates</string>
+    <string name="save_template">Save as template</string>
+    <string name="load_template">Load template</string>
+    <string name="auto_counter">Auto-increment counter</string>
+    <string name="counter_pattern_hint">Use {n} in URL or text to insert the counter</string>
+</resources>

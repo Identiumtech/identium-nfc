@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.IdentiumNfc" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Light blue primary in dark mode for contrast (CRM uses dark:hover:text-blue-400). -->
+        <item name="colorPrimary">#7d8cf2</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorPrimaryContainer">#1a2566</item>
+        <item name="colorOnPrimaryContainer">#dde2fb</item>
+
+        <item name="colorSecondary">#5d75e0</item>
+        <item name="colorOnSecondary">@color/black</item>
+
+        <item name="colorTertiary">@color/brand_red_light</item>
+
+        <item name="android:colorBackground">@color/surface_dark</item>
+        <item name="colorSurface">@color/surface_dark_card</item>
+        <item name="colorSurfaceVariant">@color/surface_dark_card_elev</item>
+        <item name="colorOnSurface">@color/text_primary_dark</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary_dark</item>
+        <item name="colorOutline">@color/divider_dark</item>
+        <item name="colorOutlineVariant">@color/divider_dark</item>
+
+        <item name="android:statusBarColor">@color/black</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:navigationBarColor">@color/surface_dark</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
+    </style>
+
+    <style name="TextAppearance.Identium.Section" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textColor">#7d8cf2</item>
+    </style>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark-mode bottom-nav inactive color override -->
+    <color name="text_secondary">#B6BAD0</color>
+</resources>

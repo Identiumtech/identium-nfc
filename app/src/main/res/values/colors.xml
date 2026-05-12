@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Identium brand palette (sourced from CRM tailwind.config.js).
+        Primary actions are BLUE — red is reserved for danger / alert states
+        (matches the CRM's btn-primary / btn-danger split).
+    -->
+    <color name="brand_blue">#1a3adb</color>
+    <color name="brand_blue_700">#0e2499</color>
+    <color name="brand_blue_900">#060e3d</color>
+    <color name="brand_blue_50">#eef0fc</color>
+    <color name="brand_blue_100">#dde2fb</color>
+    <color name="brand_blue_200">#b9c2f5</color>
+
+    <color name="brand_dark">#1a1a2e</color>
+    <color name="brand_darkblue">#0f2167</color>
+
+    <color name="brand_red">#c41230</color>
+    <color name="brand_red_dark">#9a0e26</color>
+    <color name="brand_red_light">#e53e5b</color>
+    <color name="brand_red_50">#fce4e8</color>
+
+    <color name="brand_teal">#006b6b</color>
+
+    <!-- Surfaces -->
+    <color name="surface_light">#FFFFFF</color>
+    <color name="surface_grey">#F5F6FA</color>
+    <color name="surface_grey_2">#EEF0F6</color>
+    <color name="surface_dark">#0c0d18</color>
+    <color name="surface_dark_card">#171a2b</color>
+    <color name="surface_dark_card_elev">#1f2238</color>
+
+    <!-- Text -->
+    <color name="text_primary">#101225</color>
+    <color name="text_secondary">#5b5f78</color>
+    <color name="text_tertiary">#9a9eb3</color>
+    <color name="text_primary_dark">#F4F5FB</color>
+    <color name="text_secondary_dark">#B6BAD0</color>
+    <color name="text_tertiary_dark">#797E97</color>
+
+    <color name="divider">#E2E4EE</color>
+    <color name="divider_dark">#262945</color>
+
+    <!-- Status -->
+    <color name="success">#16a34a</color>
+    <color name="warning">#f59e0b</color>
+    <color name="error">#dc2626</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+</resources>

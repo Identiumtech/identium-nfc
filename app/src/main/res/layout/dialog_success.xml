@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="24dp">
+
+    <FrameLayout
+        android:id="@+id/success_chip"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:background="#1A16A34A">
+
+        <ImageView
+            android:id="@+id/success_icon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:src="@android:drawable/checkbox_on_background"
+            android:tint="@color/success"
+            android:contentDescription="@null" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/success_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textStyle="bold"
+        android:text="Write successful" />
+
+    <TextView
+        android:id="@+id/success_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:text="The tag has been written." />
+</LinearLayout>

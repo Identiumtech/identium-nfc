@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Empty / Idle state -->
+        <LinearLayout
+            android:id="@+id/empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="24dp">
+
+            <FrameLayout
+                android:layout_width="140dp"
+                android:layout_height="140dp">
+
+                <View
+                    android:layout_width="140dp"
+                    android:layout_height="140dp"
+                    android:background="@drawable/bg_brand_chip_blue" />
+
+                <ImageView
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_nfc_wave"
+                    android:tint="@color/brand_blue"
+                    android:contentDescription="@null" />
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/ready_for_tag"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textStyle="bold"
+                android:layout_marginTop="20dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAlignment="center"
+                android:text="Bring an NFC tag close to the back of the phone to read its UID, technologies and contents."
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:layout_marginTop="6dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_force_scan"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Force a scan" />
+        </LinearLayout>
+
+        <!-- Result content -->
+        <LinearLayout
+            android:id="@+id/result_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Identium.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Tag overview"
+                        android:textColor="?attr/colorPrimary"
+                        android:textStyle="bold"
+                        android:textSize="12sp"
+                        android:letterSpacing="0.06"
+                        android:textAllCaps="true" />
+
+                    <TextView
+                        android:id="@+id/tag_type"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:textAppearance="@style/TextAppearance.Identium.Title"
+                        tools:text="NTAG215" />
+
+                    <TextView
+                        android:id="@+id/tag_product"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        tools:text="NTAG215 (540 bytes)" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="?attr/colorOutline"
+                        android:layout_marginVertical="14dp" />
+
+                    <include
+                        android:id="@+id/row_uid"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_uid_len"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_tech"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_atqa"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_sak"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_total_mem"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_used_mem"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_writable"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    <include
+                        android:id="@+id/row_can_lock"
+                        layout="@layout/row_kv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Identium.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="NDEF records"
+                        android:textColor="?attr/colorPrimary"
+                        android:textStyle="bold"
+                        android:textSize="12sp"
+                        android:letterSpacing="0.06"
+                        android:textAllCaps="true" />
+
+                    <LinearLayout
+                        android:id="@+id/ndef_records_container"
+                        android:orientation="vertical"
+                        android:layout_marginTop="10dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/ndef_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Tag has no NDEF records."
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Identium.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Memory dump"
+                            android:textColor="?attr/colorPrimary"
+                            android:textStyle="bold"
+                            android:textSize="12sp"
+                            android:letterSpacing="0.06"
+                            android:textAllCaps="true" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_copy_dump"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Copy" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/memory_dump_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:textIsSelectable="true"
+                        android:textSize="12sp"
+                        android:layout_marginTop="6dp"
+                        tools:text="0000  04 12 34 56 78 9A BC 8E   12 34 56 7B 00 00 00 00  ..4VxŠ¼Ž.4V{...." />
+
+                    <TextView
+                        android:id="@+id/memory_dump_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Memory dump unavailable for this tag type."
+                        android:textColor="?attr/colorOnSurfaceVariant"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="14dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_clear_screen"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Clear"
+                    app:icon="@android:drawable/ic_menu_close_clear_cancel" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_share_report"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Share report" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:textSize="11sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:text="“Clear” dismisses the data on this screen. To erase the actual tag, use Other → Erase tag." />
+
+        </LinearLayout>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

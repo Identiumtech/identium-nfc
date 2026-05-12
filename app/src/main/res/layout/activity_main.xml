@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <!--
+        Brand bar mirrors the CRM Login header — dark→darkblue→blue gradient,
+        logo on a white rounded square, NFC indicator chip on the right.
+    -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_brand_header"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="18dp">
+
+        <FrameLayout
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_logo_square"
+            android:elevation="2dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="2dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/identium_logo"
+                android:contentDescription="@string/app_name" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="14dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:letterSpacing="-0.01" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_tagline"
+                android:textColor="#B6BAD0"
+                android:textSize="11sp"
+                android:letterSpacing="0.10"
+                android:textAllCaps="true"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <!-- NFC indicator chip -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="#22FFFFFF"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_nfc_wave"
+                android:tint="@color/white"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NFC"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.12"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btn_settings_top"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:src="@android:drawable/ic_menu_preferences"
+            android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/settings" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/banner_nfc_unavailable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:padding="12dp"
+        android:gravity="center"
+        android:background="@color/brand_red_50"
+        android:textColor="@color/brand_red_dark"
+        android:textStyle="bold"
+        tools:text="NFC is turned off"
+        tools:visibility="visible" />
+
+    <FrameLayout
+        android:id="@+id/fragment_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:menu="@menu/bottom_nav"
+        app:labelVisibilityMode="labeled"
+        app:itemIconTint="@color/bottom_nav_item"
+        app:itemTextColor="@color/bottom_nav_item"
+        app:itemActiveIndicatorStyle="@style/Widget.Identium.BottomNav.ActiveIndicator"
+        android:background="?attr/colorSurface"
+        app:elevation="8dp" />
+</LinearLayout>

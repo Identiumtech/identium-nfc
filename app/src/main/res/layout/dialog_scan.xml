@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Scan dialog with branded sonar animation.
+
+    Layout structure:
+      - small Identium logo at top with subtle pulse
+      - 200dp pulse area, clipChildren=false so the rings can grow past
+        the dialog's visible bounds without getting clipped
+      - 3 concentric blue rings (animated) + 1 outline ring + 1 white
+        coin chip with the static NFC icon dead-center
+      - title / subtitle / cancel
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="24dp"
+    android:paddingBottom="20dp"
+    android:gravity="center_horizontal"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <FrameLayout
+        android:id="@+id/scan_logo"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/bg_logo_square"
+        android:elevation="2dp">
+
+        <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="2dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/identium_logo"
+            android:contentDescription="@null" />
+    </FrameLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="IDENTIUM NFC"
+        android:textColor="@color/text_secondary"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.18" />
+
+    <FrameLayout
+        android:layout_width="220dp"
+        android:layout_height="200dp"
+        android:layout_marginTop="20dp"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <!-- Outer ring outline that pulses last -->
+        <View
+            android:id="@+id/scan_ring_3"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_pulse_ring" />
+
+        <View
+            android:id="@+id/scan_ring_2"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_pulse_ring" />
+
+        <View
+            android:id="@+id/scan_ring_1"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_pulse_ring" />
+
+        <!-- Static center coin -->
+        <FrameLayout
+            android:layout_width="92dp"
+            android:layout_height="92dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_nfc_chip_circle"
+            android:elevation="6dp">
+
+            <ImageView
+                android:id="@+id/scan_icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_nfc_wave"
+                android:tint="@color/brand_blue"
+                android:contentDescription="@null" />
+        </FrameLayout>
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/scan_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textStyle="bold"
+        android:text="@string/approach_tag" />
+
+    <TextView
+        android:id="@+id/scan_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:text="Hold the tag near the back of your phone." />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_cancel"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="@string/cancel" />
+</LinearLayout>

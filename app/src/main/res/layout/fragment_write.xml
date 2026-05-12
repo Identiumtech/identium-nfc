@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Add a record"
+                android:textColor="?attr/colorPrimary"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:letterSpacing="0.06"
+                android:textAllCaps="true" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/grid_record_types"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:nestedScrollingEnabled="false" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginVertical="18dp"
+                android:background="?attr/colorOutline" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Records to write"
+                android:textColor="?attr/colorPrimary"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:letterSpacing="0.06"
+                android:textAllCaps="true" />
+
+            <LinearLayout
+                android:id="@+id/records_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="10dp" />
+
+            <TextView
+                android:id="@+id/records_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="16dp"
+                android:gravity="center"
+                android:text="No records yet. Add one above."
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <TextView
+                android:id="@+id/payload_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:padding="12dp"
+                android:background="@drawable/bg_card_outlined"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                tools:text="Payload size: 47 bytes" />
+
+            <com.google.android.material.checkbox.MaterialCheckBox
+                android:id="@+id/check_lock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/lock_tag" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:text="Once a tag is locked, it can no longer be written. This is irreversible." />
+
+            <TextView
+                android:id="@+id/counter_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:padding="10dp"
+                android:background="@drawable/bg_card_outlined"
+                android:textColor="?attr/colorPrimary"
+                android:textSize="13sp"
+                android:visibility="gone"
+                tools:visibility="visible"
+                tools:text="Auto-counter: {n} → 0042" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="14dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_save_template"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/save_template" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_load_template"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/load_template" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_write"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:text="@string/write"
+        app:icon="@drawable/ic_write"
+        app:iconTint="@color/white"
+        android:textColor="@color/white" />
+</LinearLayout>
