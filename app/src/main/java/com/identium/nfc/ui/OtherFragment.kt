@@ -73,6 +73,9 @@ class OtherFragment : Fragment() {
         )
 
         val bulk = listOf(
+            Action("Generate QR code", "Show the same data as a printable QR — for customers without NFC tags") {
+                promptForQrText()
+            },
             Action("Quick recipes", "Pre-built tag templates — Wi-Fi, vCard, asset tag, menu URL…") {
                 startActivity(Intent(requireContext(), QuickRecipesActivity::class.java))
             },
@@ -111,6 +114,36 @@ class OtherFragment : Fragment() {
             }
         }
     }
+
+    private fun promptForQrText() {
+        val ctx = requireContext()
+        val til = com.google.android.material.textfield.TextInputLayout(
+            ctx, null, com.google.android.material.R.attr.textInputOutlinedStyle
+        ).apply {
+            hint = "URL, text, or any payload"
+            boxBackgroundMode = com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE
+            setPadding(dp(16), dp(8), dp(16), 0)
+        }
+        val edit = com.google.android.material.textfield.TextInputEditText(til.context).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 2
+        }
+        til.addView(edit)
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Generate QR code")
+            .setMessage("Type or paste any URL or text. We'll render a scannable QR you can share or print.")
+            .setView(til)
+            .setPositiveButton("Generate") { _, _ ->
+                val v = edit.text?.toString().orEmpty().trim()
+                if (v.isNotEmpty()) {
+                    startActivity(QrCodeActivity.intent(ctx, v))
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun bindGroup(container: LinearLayout, items: List<Action>) {
         container.removeAllViews()

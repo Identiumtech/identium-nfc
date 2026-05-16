@@ -23,6 +23,7 @@ import com.identium.nfc.nfc.PendingOperation
 import com.identium.nfc.nfc.WriteRecord
 import com.identium.nfc.nfc.toNdef
 import com.identium.nfc.util.SuccessDialog
+import com.identium.nfc.util.toQrText
 
 class WriteFragment : Fragment() {
 
@@ -78,8 +79,32 @@ class WriteFragment : Fragment() {
         }
 
         binding.btnWrite.setOnClickListener { onWritePressed() }
+        binding.btnShowQr.setOnClickListener { onShowQrPressed() }
         binding.btnSaveTemplate.setOnClickListener { promptSaveTemplate() }
         binding.btnLoadTemplate.setOnClickListener { promptLoadTemplate() }
+    }
+
+    private fun onShowQrPressed() {
+        val records = viewModel.writeQueue.value.orEmpty()
+        if (records.isEmpty()) {
+            Toast.makeText(requireContext(), "Add a record first", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // QR carries one piece of data; if the user staged multiple records
+        // we use the first and warn so they know the rest aren't included.
+        val first = records.first()
+        val payload = first.toQrText()
+        val applied = if (Counter.isEnabled(requireContext()) && payload.contains("{n}"))
+            payload.replace("{n}", Counter.render(Counter.current(requireContext()), Counter.padding(requireContext())))
+        else payload
+        if (records.size > 1) {
+            Toast.makeText(
+                requireContext(),
+                "QR only fits one record — using \"${first.title}\". The other ${records.size - 1} stay queued for NFC.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+        startActivity(QrCodeActivity.intent(requireContext(), applied, label = "${first.title}: ${first.summary}"))
     }
 
     override fun onResume() {

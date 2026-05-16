@@ -130,13 +130,29 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btn_write"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:text="@string/write"
-        app:icon="@drawable/ic_write"
-        app:iconTint="@color/white"
-        android:textColor="@color/white" />
+        android:orientation="horizontal"
+        android:layout_margin="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_write"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/write"
+            app:icon="@drawable/ic_write"
+            app:iconTint="@color/white"
+            android:textColor="@color/white" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_show_qr"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Show QR"
+            app:icon="@android:drawable/ic_menu_view" />
+    </LinearLayout>
 </LinearLayout>

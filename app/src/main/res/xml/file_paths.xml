@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Where QR PNGs are written before sharing — read-back via FileProvider. -->
+    <cache-path name="qr_cache" path="." />
+    <external-cache-path name="external_qr_cache" path="." />
+</paths>

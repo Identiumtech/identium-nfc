@@ -17,6 +17,7 @@ import com.identium.nfc.databinding.ItemActionCardBinding
 import com.identium.nfc.nfc.WifiAuth
 import com.identium.nfc.nfc.WifiEnc
 import com.identium.nfc.nfc.WriteRecord
+import com.identium.nfc.util.toQrText
 
 /**
  * Pre-built recipe pack — taps fill the Write tab queue with sensible
@@ -73,15 +74,28 @@ class QuickRecipesActivity : AppCompatActivity() {
             return
         }
         val records = recipe.build(Profile.load(this))
-        // Hand them off to MainActivity's Write tab via intent extras.
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra(MainActivity.EXTRA_LOAD_RECORDS, ArrayList(records))
-            putExtra(MainActivity.EXTRA_OPEN_TAB, R.id.tab_write)
-        }
-        startActivity(intent)
-        Toast.makeText(this, "Loaded ${records.size} record(s) — review and tap Write", Toast.LENGTH_LONG).show()
-        finish()
+        // Two outputs: program an NFC tag or show a QR code.
+        MaterialAlertDialogBuilder(this)
+            .setTitle(recipe.title)
+            .setMessage("Where do you want this data?")
+            .setPositiveButton("Write to NFC tag") { _, _ ->
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    putExtra(MainActivity.EXTRA_LOAD_RECORDS, ArrayList(records))
+                    putExtra(MainActivity.EXTRA_OPEN_TAB, R.id.tab_write)
+                }
+                startActivity(intent)
+                Toast.makeText(this, "Loaded ${records.size} record(s) — review and tap Write", Toast.LENGTH_LONG).show()
+                finish()
+            }
+            .setNeutralButton("Show as QR") { _, _ ->
+                val payload = records.first().toQrText()
+                startActivity(QrCodeActivity.intent(this, payload,
+                    label = "${recipe.title} — ${records.first().summary}"))
+                finish()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     data class Recipe(

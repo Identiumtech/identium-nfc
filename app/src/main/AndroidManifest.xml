@@ -125,5 +125,21 @@
             android:name=".ui.OnboardingActivity"
             android:label="Welcome"
             android:exported="false" />
+
+        <activity
+            android:name=".ui.QrCodeActivity"
+            android:label="QR code"
+            android:parentActivityName=".MainActivity" />
+
+        <!-- For sharing the QR PNG via Intent.ACTION_SEND. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>
