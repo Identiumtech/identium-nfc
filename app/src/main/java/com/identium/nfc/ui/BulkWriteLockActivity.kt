@@ -75,6 +75,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
     // table
     private lateinit var tableSection: LinearLayout
+    private lateinit var tableTitle: TextView
     private lateinit var recycler: RecyclerView
     private lateinit var emptyTable: TextView
     private lateinit var adapter: BulkAdapter
@@ -102,13 +103,22 @@ class BulkWriteLockActivity : BaseNfcActivity() {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
+            fitsSystemWindows = true
         }
+
+        // The app theme is NoActionBar, so without an explicit toolbar there is
+        // no title, no up arrow and — critically — no overflow menu, which would
+        // leave Export CSV / Clear log unreachable.
+        root.addView(buildToolbar(), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // Setup is a NestedScrollView with a weight so it scrolls internally on
         // short screens instead of clipping; the run panel wraps its (compact,
-        // fixed) content; the table takes whatever height is left.
+        // fixed) content; the table takes the remaining height. The table is
+        // always on screen — during setup it shows past runs, during a session
+        // it fills with live rows.
         root.addView(buildSetupPanel(), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1.4f))
         root.addView(buildRunPanel(), LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(buildTableSection(), LinearLayout.LayoutParams(
@@ -122,6 +132,23 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     }
 
     // ── view construction ──
+
+    private fun buildToolbar(): View {
+        val toolbar = com.google.android.material.appbar.MaterialToolbar(this).apply {
+            setBackgroundResource(R.drawable.bg_brand_header)
+            title = "Bulk write & lock"
+            setTitleTextColor(getColor(R.color.white))
+            navigationIcon = androidx.appcompat.content.res.AppCompatResources
+                .getDrawable(context, androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+                ?.also { it.setTint(getColor(R.color.white)) }
+            setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+            overflowIcon?.setTint(getColor(R.color.white))
+        }
+        setSupportActionBar(toolbar)
+        // Re-tint after the menu inflates — the overflow drawable is created lazily.
+        toolbar.post { toolbar.overflowIcon?.setTint(getColor(R.color.white)) }
+        return toolbar
+    }
 
     private fun buildSetupPanel(): View {
         val panel = LinearLayout(this).apply {
@@ -241,6 +268,16 @@ class BulkWriteLockActivity : BaseNfcActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), 0)
         }
+
+        tableTitle = TextView(this).apply {
+            text = "RESULTS"
+            textSize = 12f
+            letterSpacing = 0.08f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(getColor(R.color.brand_blue))
+            setPadding(0, 0, 0, dp(6))
+        }
+        tableSection.addView(tableTitle, lp())
 
         val headerRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -397,12 +434,12 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         sessionLine.text = if (running)
             "This session: $sessionOk written" + (if (sessionFail > 0) " · $sessionFail failed" else "")
         else "Showing all-time log"
+        // The table is always on screen — only its contents swap between the
+        // empty-state hint and the rows.
         val hasRows = adapter.itemCount > 0
         emptyTable.visibility = if (hasRows) View.GONE else View.VISIBLE
         recycler.visibility = if (hasRows) View.VISIBLE else View.GONE
-        // During setup with no history there's nothing worth showing — give the
-        // form the full screen instead of a large empty table.
-        tableSection.visibility = if (running || hasRows) View.VISIBLE else View.GONE
+        tableTitle.text = if (hasRows) "RESULTS  ($total)" else "RESULTS"
     }
 
     // ── session control ──

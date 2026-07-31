@@ -41,7 +41,26 @@ class HistoryActivity : AppCompatActivity() {
         title = getString(R.string.history)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            fitsSystemWindows = true
+        }
+
+        // The app theme is NoActionBar — without an explicit toolbar the
+        // Export CSV / Clear overflow items would never be reachable.
+        val toolbar = com.google.android.material.appbar.MaterialToolbar(this).apply {
+            setBackgroundResource(R.drawable.bg_brand_header)
+            title = getString(R.string.history)
+            setTitleTextColor(getColor(R.color.white))
+            navigationIcon = androidx.appcompat.content.res.AppCompatResources
+                .getDrawable(context, androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+                ?.also { it.setTint(getColor(R.color.white)) }
+            setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        }
+        setSupportActionBar(toolbar)
+        toolbar.post { toolbar.overflowIcon?.setTint(getColor(R.color.white)) }
+        root.addView(toolbar, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         emptyView = TextView(this).apply {
             text = "No tag operations recorded yet.\nStart reading or writing tags — entries will appear here."
