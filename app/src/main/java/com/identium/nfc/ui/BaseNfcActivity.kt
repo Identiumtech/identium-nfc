@@ -137,6 +137,33 @@ abstract class BaseNfcActivity : AppCompatActivity() {
         showScanDialog(title, subtitle)
     }
 
+    /**
+     * Same as [runOnNextTap] but without the modal scan dialog. Used by the
+     * bulk write screen, where the whole screen is already the prompt and a
+     * dialog would have to be dismissed between every tag.
+     */
+    protected fun <R> runOnNextTapSilently(
+        work: (Tag) -> R,
+        onResult: (R) -> Unit
+    ) {
+        if (nfcAdapter == null) {
+            SuccessDialog.showError(this, "NFC unavailable", "This device does not support NFC.")
+            return
+        }
+        if (nfcAdapter?.isEnabled == false) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("NFC is off")
+                .setMessage("Please enable NFC in system settings to continue.")
+                .setPositiveButton("Open settings") { _, _ ->
+                    startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        pending = PendingTagAction(work, onResult)
+    }
+
     protected fun cancelPending() {
         pending = null
         dismissScanDialog()

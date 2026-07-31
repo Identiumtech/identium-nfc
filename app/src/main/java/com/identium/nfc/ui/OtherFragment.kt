@@ -64,6 +64,15 @@ class OtherFragment : Fragment() {
             Action("Verify tag", "Read a tag and check it matches an expected URL or text") {
                 startActivity(Intent(requireContext(), VerifyTagActivity::class.java))
             },
+            Action("Digital Passport / Authenticity", "Issue tap-to-verify passport tags tied to your verification URL") {
+                startActivity(Intent(requireContext(), PassportActivity::class.java))
+            },
+            Action("Check chip authenticity", "Verify the NXP originality signature offline + read the scan counter") {
+                startActivity(Intent(requireContext(), ChipInspectorActivity::class.java))
+            },
+            Action("Memory editor", "Read and edit raw user-memory pages in hex (power users)") {
+                startActivity(Intent(requireContext(), MemoryEditorActivity::class.java))
+            },
             Action("Copy tag", "Copy NDEF records — works across different chip types") {
                 startActivity(Intent(requireContext(), CopyTagActivity::class.java))
             },
@@ -73,6 +82,9 @@ class OtherFragment : Fragment() {
         )
 
         val bulk = listOf(
+            Action("Bulk write & lock", "Same URL on tag after tag — writes, locks and re-arms in one tap") {
+                startActivity(Intent(requireContext(), BulkWriteLockActivity::class.java))
+            },
             Action("Generate QR code", "Show the same data as a printable QR — for customers without NFC tags") {
                 promptForQrText()
             },

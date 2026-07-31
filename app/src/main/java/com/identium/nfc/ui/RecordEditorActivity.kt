@@ -66,7 +66,9 @@ class RecordEditorActivity : AppCompatActivity() {
     // ---------- Form builders ----------
 
     private fun buildUrlForm() {
-        val url = textInput("URL", InputType.TYPE_TEXT_VARIATION_URI, "https://identium.io")
+        // Pre-filled with just the scheme so customers replace it with their
+        // own URL — we never bake an Identium URL into a customer payload.
+        val url = textInput("URL", InputType.TYPE_TEXT_VARIATION_URI, "https://")
         addBuildButton {
             val v = trimmed(url)
             if (v.isEmpty()) error(url, "Required") else WriteRecord.Url(v)
@@ -74,8 +76,8 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildTextForm() {
-        val text = textInput("Text", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "Type your text…", multi = true)
-        val lang = textInput("Language tag", InputType.TYPE_CLASS_TEXT, "en")
+        val text = textInput("Text", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "", multi = true)
+        val lang = textInput("Language tag (e.g. en)", InputType.TYPE_CLASS_TEXT, "en")
         addBuildButton {
             val v = trimmed(text); val l = trimmed(lang).ifEmpty { "en" }
             if (v.isEmpty()) error(text, "Required") else WriteRecord.Text(v, l)
@@ -83,9 +85,9 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildEmailForm() {
-        val to = textInput("Recipient", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, "name@example.com")
-        val subject = textInput("Subject", InputType.TYPE_CLASS_TEXT, "Subject")
-        val body = textInput("Body", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "Message body", multi = true)
+        val to = textInput("Recipient", InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, "")
+        val subject = textInput("Subject (optional)", InputType.TYPE_CLASS_TEXT, "")
+        val body = textInput("Body (optional)", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "", multi = true)
         addBuildButton {
             val v = trimmed(to)
             if (v.isEmpty()) error(to, "Required")
@@ -94,7 +96,7 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildPhoneForm() {
-        val n = textInput("Phone number", InputType.TYPE_CLASS_PHONE, "+1 555 123 4567")
+        val n = textInput("Phone number (with country code)", InputType.TYPE_CLASS_PHONE, "")
         addBuildButton {
             val v = trimmed(n)
             if (v.isEmpty()) error(n, "Required") else WriteRecord.Phone(v)
@@ -102,8 +104,8 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildSmsForm() {
-        val n = textInput("Number", InputType.TYPE_CLASS_PHONE, "+1 555 123 4567")
-        val body = textInput("Message", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "Hello…", multi = true)
+        val n = textInput("Recipient number", InputType.TYPE_CLASS_PHONE, "")
+        val body = textInput("Message", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "", multi = true)
         addBuildButton {
             val v = trimmed(n)
             if (v.isEmpty()) error(n, "Required") else WriteRecord.Sms(v, trimmed(body))
@@ -111,9 +113,9 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildGeoForm() {
-        val lat = textInput("Latitude", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL, "52.5200")
-        val lon = textInput("Longitude", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL, "13.4050")
-        val label = textInput("Label (optional)", InputType.TYPE_CLASS_TEXT, "Berlin")
+        val lat = textInput("Latitude (e.g. 52.5200)", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL, "")
+        val lon = textInput("Longitude (e.g. 13.4050)", InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL, "")
+        val label = textInput("Label (optional)", InputType.TYPE_CLASS_TEXT, "")
         addBuildButton {
             try {
                 val la = trimmed(lat).toDouble(); val lo = trimmed(lon).toDouble()
@@ -124,7 +126,7 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildAddrForm() {
-        val a = textInput("Address", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "1 Infinite Loop, Cupertino, CA", multi = true)
+        val a = textInput("Address", InputType.TYPE_TEXT_FLAG_MULTI_LINE, "", multi = true)
         addBuildButton {
             val v = trimmed(a)
             if (v.isEmpty()) error(a, "Required") else WriteRecord.AddressEntry(v)
@@ -132,7 +134,7 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildAppForm() {
-        val pkg = textInput("Package name", InputType.TYPE_CLASS_TEXT, "com.example.app")
+        val pkg = textInput("Package name (e.g. com.example.app)", InputType.TYPE_CLASS_TEXT, "")
         addBuildButton {
             val v = trimmed(pkg)
             if (v.isEmpty()) error(pkg, "Required") else WriteRecord.App(v)
@@ -142,8 +144,10 @@ class RecordEditorActivity : AppCompatActivity() {
     private fun buildVcardForm() {
         // Pre-fill from the saved Profile so a sales rep can author a vCard
         // tag in two taps. Anything in the profile is editable here per-tag.
+        // If the profile is empty, all fields start empty — no placeholder
+        // names get accidentally written to a tag.
         val p = Profile.load(this)
-        val name = textInput("Full name", InputType.TYPE_CLASS_TEXT, p.fullName.ifBlank { "Jane Doe" })
+        val name = textInput("Full name", InputType.TYPE_CLASS_TEXT, p.fullName)
         val org = textInput("Company", InputType.TYPE_CLASS_TEXT, p.company)
         val ttl = textInput("Title", InputType.TYPE_CLASS_TEXT, p.title)
         val phone = textInput("Phone", InputType.TYPE_CLASS_PHONE, p.phone)
@@ -162,8 +166,8 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildWifiForm() {
-        val ssid = textInput("SSID", InputType.TYPE_CLASS_TEXT, "MyWifi")
-        val pwd = textInput("Password", InputType.TYPE_TEXT_VARIATION_PASSWORD, "password")
+        val ssid = textInput("SSID (network name)", InputType.TYPE_CLASS_TEXT, "")
+        val pwd = textInput("Password", InputType.TYPE_TEXT_VARIATION_PASSWORD, "")
 
         rootLayout.addView(label("Authentication"))
         val authSpinner = android.widget.Spinner(this).apply {
@@ -202,7 +206,7 @@ class RecordEditorActivity : AppCompatActivity() {
     }
 
     private fun buildBtForm() {
-        val mac = textInput("MAC address", InputType.TYPE_CLASS_TEXT, "AA:BB:CC:DD:EE:FF")
+        val mac = textInput("MAC address (e.g. AA:BB:CC:DD:EE:FF)", InputType.TYPE_CLASS_TEXT, "")
         val name = textInput("Device name (optional)", InputType.TYPE_CLASS_TEXT, "")
         addBuildButton {
             val v = trimmed(mac)

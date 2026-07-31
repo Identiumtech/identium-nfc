@@ -181,7 +181,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun runOperation(tag: Tag, op: PendingOperation) {
         lifecycleScope.launch {
-            val outcome = withContext(Dispatchers.IO) { dispatch(tag, op) }
+            val outcome = withContext(Dispatchers.IO) {
+                try { dispatch(tag, op) }
+                catch (e: Exception) {
+                    // Catch malformed payloads (e.g. invalid Bluetooth MAC)
+                    // and surface them as a clear write-result error rather
+                    // than letting the coroutine drop the exception silently.
+                    OpOutcome.WroteResult(TagOperations.WriteResult.error(
+                        "Operation failed: ${e.message ?: e.javaClass.simpleName}"
+                    ))
+                }
+            }
             viewModel.clearPending()
             when (outcome) {
                 is OpOutcome.TagInfoLoaded -> {
@@ -243,10 +253,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun recordContainsCounterToken(r: com.identium.nfc.nfc.WriteRecord): Boolean {
+        // Match every record type Counter.applyTo can substitute into —
+        // otherwise the counter wouldn't bump after a successful write of
+        // e.g. an SMS or vCard that contained {n}.
         val token = "{n}"
         return when (r) {
             is com.identium.nfc.nfc.WriteRecord.Url -> r.url.contains(token)
             is com.identium.nfc.nfc.WriteRecord.Text -> r.text.contains(token)
+            is com.identium.nfc.nfc.WriteRecord.Email ->
+                r.to.contains(token) || r.subject.contains(token) || r.body.contains(token)
+            is com.identium.nfc.nfc.WriteRecord.Sms -> r.body.contains(token)
+            is com.identium.nfc.nfc.WriteRecord.AddressEntry -> r.address.contains(token)
+            is com.identium.nfc.nfc.WriteRecord.Vcard ->
+                r.fullName.contains(token) || r.note.contains(token)
             is com.identium.nfc.nfc.WriteRecord.CustomMime -> r.payloadAscii.contains(token)
             else -> false
         }

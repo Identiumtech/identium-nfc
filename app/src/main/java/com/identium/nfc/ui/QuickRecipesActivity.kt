@@ -61,11 +61,61 @@ class QuickRecipesActivity : AppCompatActivity() {
     override fun onSupportNavigateUp(): Boolean { finish(); return true }
 
     private fun applyRecipe(recipe: Recipe) {
-        val needsProfile = recipe.id in setOf(R_VCARD, R_CONTACT_HANDOVER, R_LANDING)
+        // Recipes that drop the user's website / contact info into the
+        // payload need a filled profile. We never substitute a fallback
+        // URL — a customer's tag must contain their data, not ours.
+        val needsProfile = recipe.id in setOf(
+            R_VCARD, R_CONTACT_HANDOVER, R_LANDING,
+            R_RESTAURANT_MENU, R_PRODUCT_INFO, R_EVENT_CHECKIN, R_DOC_LINK,
+            R_REVIEW_LINK
+        )
         if (needsProfile && !Profile.isFilled(this)) {
             MaterialAlertDialogBuilder(this)
                 .setTitle("Fill your profile first")
                 .setMessage("This recipe uses details from your business card. Set them once and every recipe picks them up automatically.")
+                .setPositiveButton("Open profile") { _, _ ->
+                    startActivity(Intent(this, ProfileActivity::class.java))
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        // Recipes that specifically need a website URL gate on it separately
+        // — name + phone alone aren't enough for the menu / product / etc.
+        val needsWebsite = recipe.id in setOf(
+            R_LANDING, R_RESTAURANT_MENU, R_PRODUCT_INFO, R_EVENT_CHECKIN, R_DOC_LINK
+        )
+        if (needsWebsite && !Profile.hasWebsite(this)) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Add your website")
+                .setMessage("This recipe builds a URL from your own website. Open your profile and set the Website field, then come back.")
+                .setPositiveButton("Open profile") { _, _ ->
+                    startActivity(Intent(this, ProfileActivity::class.java))
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        // Phone-specific recipes need a phone number in the profile —
+        // without it we'd write an empty tel: tag.
+        val needsPhone = recipe.id in setOf(R_CONTACT_HANDOVER, R_REVIEW_LINK)
+        if (needsPhone && Profile.load(this).phone.isBlank()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Add your phone number")
+                .setMessage("This recipe writes your phone number to the tag. Open your profile and set the Phone field, then come back.")
+                .setPositiveButton("Open profile") { _, _ ->
+                    startActivity(Intent(this, ProfileActivity::class.java))
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        // vCard needs at minimum a name — an FN-less vCard is technically
+        // valid but useless to the scanning phone.
+        if (recipe.id == R_VCARD && Profile.load(this).fullName.isBlank()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Add your name")
+                .setMessage("vCard tags need at least your full name. Open your profile and fill in Full name, then come back.")
                 .setPositiveButton("Open profile") { _, _ ->
                     startActivity(Intent(this, ProfileActivity::class.java))
                 }
@@ -131,7 +181,7 @@ class QuickRecipesActivity : AppCompatActivity() {
             ) { profile ->
                 listOf(
                     WriteRecord.Vcard(
-                        fullName = profile.fullName.ifBlank { "Identium Team" },
+                        fullName = profile.fullName,
                         organization = profile.company,
                         titleField = profile.title,
                         phone = profile.phone,
@@ -165,7 +215,7 @@ class QuickRecipesActivity : AppCompatActivity() {
                 android.R.drawable.ic_menu_compass
             ) { profile ->
                 listOf(
-                    WriteRecord.Url("${profile.website.ifBlank { "https://identium.in" }}/menu?table={n}")
+                    WriteRecord.Url("${profile.website}/menu?table={n}")
                 )
             },
             Recipe(
@@ -175,7 +225,7 @@ class QuickRecipesActivity : AppCompatActivity() {
                 android.R.drawable.ic_menu_info_details
             ) { profile ->
                 listOf(
-                    WriteRecord.Url("${profile.website.ifBlank { "https://identium.in" }}/products/{n}")
+                    WriteRecord.Url("${profile.website}/products/{n}")
                 )
             },
             Recipe(
@@ -195,7 +245,7 @@ class QuickRecipesActivity : AppCompatActivity() {
                 "Your company URL — fastest possible tap-to-open",
                 android.R.drawable.ic_menu_send
             ) { profile ->
-                listOf(WriteRecord.Url(profile.website.ifBlank { "https://identium.in" }))
+                listOf(WriteRecord.Url(profile.website))
             },
             Recipe(
                 R_CONTACT_HANDOVER,
@@ -203,7 +253,7 @@ class QuickRecipesActivity : AppCompatActivity() {
                 "Tap to dial your phone number directly",
                 android.R.drawable.ic_menu_call
             ) { profile ->
-                listOf(WriteRecord.Phone(profile.phone.ifBlank { "+919999999999" }))
+                listOf(WriteRecord.Phone(profile.phone))
             },
             Recipe(
                 R_REVIEW_LINK,
@@ -211,8 +261,10 @@ class QuickRecipesActivity : AppCompatActivity() {
                 "Pre-typed SMS asking for a review — tap and send",
                 android.R.drawable.ic_dialog_dialer
             ) { profile ->
-                listOf(WriteRecord.Sms(profile.phone.ifBlank { "+919999999999" },
-                    "Hi! Thanks for choosing ${profile.company.ifBlank { "Identium" }}. Mind sharing a quick review? ${profile.website}"))
+                val orgName = profile.company.ifBlank { "us" }
+                val body = "Hi! Thanks for choosing $orgName. Mind sharing a quick review?" +
+                        if (profile.website.isNotBlank()) " ${profile.website}" else ""
+                listOf(WriteRecord.Sms(profile.phone, body))
             },
             Recipe(
                 R_EVENT_CHECKIN,
@@ -221,7 +273,7 @@ class QuickRecipesActivity : AppCompatActivity() {
                 android.R.drawable.ic_menu_my_calendar
             ) { profile ->
                 listOf(
-                    WriteRecord.Url("${profile.website.ifBlank { "https://identium.in" }}/event/checkin?id={n}")
+                    WriteRecord.Url("${profile.website}/event/checkin?id={n}")
                 )
             },
             Recipe(
@@ -231,7 +283,7 @@ class QuickRecipesActivity : AppCompatActivity() {
                 android.R.drawable.ic_menu_agenda
             ) { profile ->
                 listOf(
-                    WriteRecord.Url("${profile.website.ifBlank { "https://identium.in" }}/docs/{n}")
+                    WriteRecord.Url("${profile.website}/docs/{n}")
                 )
             }
         )

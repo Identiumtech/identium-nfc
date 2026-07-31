@@ -240,13 +240,16 @@ class ImportExcelActivity : BaseNfcActivity() {
     }
 
     private fun copySampleHeader() {
+        // Neutral placeholder data — example.com is reserved for documentation
+        // per RFC 2606, +1 555 numbers are US example-block. Customers replace
+        // these with their own values before importing.
         val sample = "url,text,phone,email,ssid,wifi_password,wifi_auth,wifi_enc,vcard_name,vcard_company,vcard_phone\n" +
-                "https://identium.io,,,,Office,supersecret,WPA2_PSK,AES,,,\n" +
+                "https://example.com,,,,Office,supersecret,WPA2_PSK,AES,,,\n" +
                 ",,+15551234567,,,,,,,,\n" +
-                ",,,,,,,,Jane Doe,Identium,+15559876543\n"
+                ",,,,,,,,Jane Doe,Acme Inc,+15559876543\n"
         val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        cm.setPrimaryClip(android.content.ClipData.newPlainText("Identium NFC sample", sample))
-        android.widget.Toast.makeText(this, "Sample CSV copied to clipboard", android.widget.Toast.LENGTH_LONG).show()
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("CSV sample", sample))
+        android.widget.Toast.makeText(this, "Sample CSV copied — edit before importing", android.widget.Toast.LENGTH_LONG).show()
     }
 
     private fun lp() = LinearLayout.LayoutParams(

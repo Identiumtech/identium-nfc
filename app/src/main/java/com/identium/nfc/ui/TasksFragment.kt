@@ -61,7 +61,7 @@ class TasksFragment : Fragment() {
 
     private fun handleTask(task: TaskUI) {
         when (task.id) {
-            ID_OPEN_URL -> textPrompt("Open URL", "https://identium.io") {
+            ID_OPEN_URL -> textPrompt("Open URL", "https://example.com") {
                 writeRecord(WriteRecord.Url(it))
             }
             ID_DIAL -> textPrompt("Phone number", "+1 555 123 4567") {
@@ -75,7 +75,11 @@ class TasksFragment : Fragment() {
             }
             ID_WIFI -> wifiPrompt()
             ID_BLUETOOTH -> twoFieldPrompt("Bluetooth pair", "MAC (AA:BB:CC:DD:EE:FF)", "Device name (optional)") { mac, name ->
-                writeRecord(WriteRecord.Bluetooth(mac, name.ifEmpty { null }))
+                if (!mac.matches(Regex("([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}"))) {
+                    Toast.makeText(requireContext(), "Invalid MAC address — use AA:BB:CC:DD:EE:FF", Toast.LENGTH_LONG).show()
+                } else {
+                    writeRecord(WriteRecord.Bluetooth(mac, name.ifEmpty { null }))
+                }
             }
             ID_APP -> textPrompt("Run application", "com.example.app") {
                 writeRecord(WriteRecord.App(it))

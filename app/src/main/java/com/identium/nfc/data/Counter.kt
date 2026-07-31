@@ -10,7 +10,7 @@ import com.identium.nfc.nfc.WriteRecord
  * substring "{n}" replaced with the current counter value before write.
  * After a successful write, [bumpAfterWrite] advances the counter.
  *
- * This lets a user write `https://identium.io/tag/{n}` and tap 1000 tags
+ * This lets a user write `https://example.com/tag/{n}` and tap 1000 tags
  * in a row, getting `/tag/1`, `/tag/2`, ... automatically.
  */
 object Counter {

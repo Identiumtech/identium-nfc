@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+        Minimal permission surface — we only need NFC to operate, plus
+        VIBRATE for write-success haptic and legacy storage for the
+        Save-QR-to-gallery fallback on pre-Q devices.
+
+        We deliberately do NOT request CALL_PHONE / SEND_SMS / BLUETOOTH /
+        WIFI permissions: writing a tel: / smsto: / WiFi: NDEF record is
+        just data — the receiving phone prompts before doing anything.
+    -->
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.CALL_PHONE" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -129,6 +132,26 @@
         <activity
             android:name=".ui.QrCodeActivity"
             android:label="QR code"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".ui.PassportActivity"
+            android:label="Digital Passport"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".ui.ChipInspectorActivity"
+            android:label="Chip authenticity"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".ui.MemoryEditorActivity"
+            android:label="Memory editor"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".ui.BulkWriteLockActivity"
+            android:label="Bulk write and lock"
             android:parentActivityName=".MainActivity" />
 
         <!-- For sharing the QR PNG via Intent.ACTION_SEND. -->

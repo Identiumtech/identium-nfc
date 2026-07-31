@@ -4,8 +4,12 @@ import android.content.Context
 
 /**
  * Stored once per device — used to pre-fill vCard / Email / Phone / Website
- * record editors and quick recipes. Lets a Sales rep tap "Business card"
+ * record editors and quick recipes. Lets the user tap "Business card"
  * and have their info ready instead of typing it every time.
+ *
+ * Defaults are empty by design — every field the user leaves blank stays
+ * blank in any tag or QR they generate. The app itself does not inject
+ * Identium URLs, addresses, or contact info into customer payloads.
  */
 object Profile {
 
@@ -13,12 +17,12 @@ object Profile {
 
     data class Card(
         val fullName: String = "",
-        val company: String = "Identium Tech Solutions Pvt Ltd",
+        val company: String = "",
         val title: String = "",
         val phone: String = "",
         val email: String = "",
-        val website: String = "https://identium.in",
-        val address: String = "Plot No. 5, First Floor, Santnagar, East of Kailash, New Delhi – 110065",
+        val website: String = "",
+        val address: String = "",
         val note: String = ""
     )
 
@@ -26,12 +30,12 @@ object Profile {
         val p = ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return Card(
             fullName = p.getString("fullName", "") ?: "",
-            company = p.getString("company", "Identium Tech Solutions Pvt Ltd") ?: "",
+            company = p.getString("company", "") ?: "",
             title = p.getString("title", "") ?: "",
             phone = p.getString("phone", "") ?: "",
             email = p.getString("email", "") ?: "",
-            website = p.getString("website", "https://identium.in") ?: "",
-            address = p.getString("address", "Plot No. 5, First Floor, Santnagar, East of Kailash, New Delhi – 110065") ?: "",
+            website = p.getString("website", "") ?: "",
+            address = p.getString("address", "") ?: "",
             note = p.getString("note", "") ?: ""
         )
     }
@@ -53,4 +57,7 @@ object Profile {
         val c = load(ctx)
         return c.fullName.isNotBlank() || c.email.isNotBlank() || c.phone.isNotBlank()
     }
+
+    /** Helper for Quick Recipes — true when [website] is set. */
+    fun hasWebsite(ctx: Context): Boolean = load(ctx).website.isNotBlank()
 }
