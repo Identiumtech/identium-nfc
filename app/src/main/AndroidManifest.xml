@@ -149,9 +149,15 @@
             android:label="Memory editor"
             android:parentActivityName=".MainActivity" />
 
+        <!--
+            configChanges: a bulk run holds in-memory session state (armed NFC
+            action, session counters). Letting the system recreate the Activity
+            on rotation would silently drop the operator mid-batch.
+        -->
         <activity
             android:name=".ui.BulkWriteLockActivity"
             android:label="Bulk write and lock"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
             android:parentActivityName=".MainActivity" />
 
         <!-- For sharing the QR PNG via Intent.ACTION_SEND. -->
