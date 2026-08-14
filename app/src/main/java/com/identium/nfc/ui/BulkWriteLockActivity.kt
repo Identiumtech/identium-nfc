@@ -70,8 +70,16 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     // counters
     private lateinit var statTotal: TextView
     private lateinit var statOk: TextView
+    private lateinit var statLocked: TextView
     private lateinit var statFail: TextView
     private lateinit var sessionLine: TextView
+
+    // serial number ({n}) controls
+    private lateinit var serialFormat: android.widget.Spinner
+    private lateinit var serialStart: TextInputEditText
+    private lateinit var serialPad: TextInputEditText
+    private lateinit var serialPreview: TextView
+    private lateinit var skipExistingSwitch: MaterialSwitch
 
     // table
     private lateinit var tableSection: LinearLayout
@@ -88,6 +96,11 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     private var sessionOk = 0
     private var sessionFail = 0
     private var baseUrl = ""
+
+    // Snapshotted on Start so the background write block never touches views.
+    private var willLock = true
+    private var skipExisting = true
+    private var useCounter = false
 
     private val handler = Handler(Looper.getMainLooper())
     private val resetStatusRunnable = Runnable { showArmedState() }
@@ -128,6 +141,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
         setContentView(root)
 
+        applyTableSizing()
         loadLog()
     }
 
@@ -175,11 +189,19 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         urlLayout.addView(urlField)
         panel.addView(urlLayout, lp())
 
+        panel.addView(buildSerialPanel(), lp().apply { topMargin = dp(14) })
+
         lockSwitch = MaterialSwitch(this).apply {
             text = "Lock each tag after writing (permanent)"
             isChecked = true
         }
         panel.addView(lockSwitch, lp().apply { topMargin = dp(12) })
+
+        skipExistingSwitch = MaterialSwitch(this).apply {
+            text = "Skip tags that already have data (show error instead)"
+            isChecked = true
+        }
+        panel.addView(skipExistingSwitch, lp().apply { topMargin = dp(4) })
 
         panel.addView(TextView(this).apply {
             text = "⚠  Locking is irreversible. A locked tag can never be rewritten. " +
@@ -199,6 +221,112 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
         setupScroll = androidx.core.widget.NestedScrollView(this).apply { addView(panel) }
         return setupScroll
+    }
+
+    /**
+     * Serial-number controls for the {n} token. Cable-tie and asset tags are
+     * usually serialised in hex and zero-padded to a fixed width so every
+     * printed serial is the same length, so format/padding live right here
+     * rather than only in Settings.
+     */
+    private fun buildSerialPanel(): View {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card_outlined)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+        }
+
+        box.addView(TextView(this).apply {
+            text = "SERIAL NUMBER  {n}"
+            textSize = 11f
+            letterSpacing = 0.08f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(getColor(R.color.brand_blue))
+        }, lp())
+
+        box.addView(TextView(this).apply {
+            text = "Only used when the URL contains {n}."
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+        }, lp().apply { bottomMargin = dp(6) })
+
+        serialFormat = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(
+                this@BulkWriteLockActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                Counter.Format.values().map { it.label }
+            )
+            setSelection(Counter.Format.values().indexOf(Counter.format(this@BulkWriteLockActivity)))
+            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) =
+                    updateSerialPreview()
+                override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+            }
+        }
+        box.addView(serialFormat, lp())
+
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val startTil = TextInputLayout(this, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = "Start at"
+            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+        }
+        serialStart = TextInputEditText(startTil.context).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(Counter.current(this@BulkWriteLockActivity).toString())
+            addTextChangedListener(watcher { updateSerialPreview() })
+        }
+        startTil.addView(serialStart)
+
+        val padTil = TextInputLayout(this, null, com.google.android.material.R.attr.textInputOutlinedStyle).apply {
+            hint = "Digits (0 = auto)"
+            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+        }
+        serialPad = TextInputEditText(padTil.context).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(Counter.padding(this@BulkWriteLockActivity).toString())
+            addTextChangedListener(watcher { updateSerialPreview() })
+        }
+        padTil.addView(serialPad)
+
+        row.addView(startTil, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(padTil, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            .apply { marginStart = dp(8) })
+        box.addView(row, lp().apply { topMargin = dp(6) })
+
+        serialPreview = TextView(this).apply {
+            textSize = 13f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(getColor(R.color.brand_blue))
+            setPadding(0, dp(8), 0, 0)
+        }
+        box.addView(serialPreview, lp())
+
+        updateSerialPreview()
+        return box
+    }
+
+    private fun currentSerialFormat(): Counter.Format =
+        Counter.Format.values().getOrElse(serialFormat.selectedItemPosition) { Counter.Format.DECIMAL }
+
+    private fun currentSerialStart(): Int =
+        serialStart.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(0) ?: 1
+
+    private fun currentSerialPad(): Int =
+        (serialPad.text?.toString()?.trim()?.toIntOrNull() ?: 0).coerceIn(0, Counter.MAX_PADDING)
+
+    private fun updateSerialPreview() {
+        if (!::serialPreview.isInitialized) return
+        val f = currentSerialFormat()
+        val start = currentSerialStart()
+        val pad = currentSerialPad()
+        val sample = (0..2).joinToString(", ") { Counter.render(start + it, pad, f) }
+        serialPreview.text = "Next serials:  $sample …"
+    }
+
+    private fun watcher(after: () -> Unit) = object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        override fun afterTextChanged(s: android.text.Editable?) = after()
     }
 
     private fun buildRunPanel(): View {
@@ -237,19 +365,23 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         statusPanel.addView(statusDetail)
         runPanel.addView(statusPanel, lp())
 
-        // Stat cards: TOTAL / WRITTEN / FAILED
+        // Stat cards: TOTAL / WRITTEN / LOCKED / FAILED — all lifetime totals.
         val stats = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         statTotal = statValue(getColor(R.color.brand_blue))
         statOk = statValue(getColor(R.color.success))
+        statLocked = statValue(getColor(R.color.brand_blue))
         statFail = statValue(getColor(R.color.error))
         stats.addView(statCard(statTotal, "TOTAL"),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         stats.addView(statCard(statOk, "WRITTEN"),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                .apply { marginStart = dp(8) })
+                .apply { marginStart = dp(6) })
+        stats.addView(statCard(statLocked, "LOCKED"),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginStart = dp(6) })
         stats.addView(statCard(statFail, "FAILED"),
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                .apply { marginStart = dp(8) })
+                .apply { marginStart = dp(6) })
         runPanel.addView(stats, lp().apply { topMargin = dp(12) })
 
         sessionLine = TextView(this).apply {
@@ -420,6 +552,21 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
     // ── data ──
 
+    /**
+     * During setup the form is the priority, so the table gets a fixed
+     * preview height and the (scrollable) form takes the rest. Once a session
+     * starts the form is gone and the table expands to fill the screen.
+     */
+    private fun applyTableSizing() {
+        val p = tableSection.layoutParams as LinearLayout.LayoutParams
+        if (running) {
+            p.height = 0; p.weight = 1f
+        } else {
+            p.height = dp(250); p.weight = 0f
+        }
+        tableSection.layoutParams = p
+    }
+
     private fun loadLog() {
         val entries = BulkLog.load(this)
         adapter.replaceAll(entries)
@@ -427,19 +574,30 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     }
 
     private fun refreshCounters() {
-        val (total, ok, fail) = BulkLog.counts(this)
-        statTotal.text = total.toString()
-        statOk.text = ok.toString()
-        statFail.text = fail.toString()
+        // Lifetime totals come from persisted counters, NOT from the capped
+        // row list — otherwise they'd freeze at MAX and shrink as old rows
+        // were evicted.
+        val c = BulkLog.counts(this)
+        val total = c.total
+        statTotal.text = c.total.toString()
+        statOk.text = c.written.toString()
+        statLocked.text = c.locked.toString()
+        statFail.text = c.failed.toString()
         sessionLine.text = if (running)
             "This session: $sessionOk written" + (if (sessionFail > 0) " · $sessionFail failed" else "")
-        else "Showing all-time log"
+        else "All-time: ${c.written} written · ${c.locked} locked · ${c.failed} failed"
         // The table is always on screen — only its contents swap between the
         // empty-state hint and the rows.
         val hasRows = adapter.itemCount > 0
         emptyTable.visibility = if (hasRows) View.GONE else View.VISIBLE
         recycler.visibility = if (hasRows) View.VISIBLE else View.GONE
-        tableTitle.text = if (hasRows) "RESULTS  ($total)" else "RESULTS"
+        // Totals are lifetime; the row list is capped, so say so rather than
+        // letting old rows silently disappear.
+        tableTitle.text = when {
+            !hasRows -> "RESULTS"
+            total > BulkLog.MAX -> "RESULTS  —  $total total, showing latest ${BulkLog.MAX}"
+            else -> "RESULTS  ($total)"
+        }
     }
 
     // ── session control ──
@@ -473,9 +631,27 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         running = true
         sessionOk = 0
         sessionFail = 0
+
+        // Snapshot the options once — the write runs on a background thread
+        // and must not read View state.
+        willLock = lockSwitch.isChecked
+        skipExisting = skipExistingSwitch.isChecked
+
+        // {n} substitution is driven by the URL itself here. Requiring the
+        // global Settings toggle as well was a trap — a URL with {n} would
+        // otherwise write the literal text "{n}" to every tag.
+        useCounter = baseUrl.contains("{n}")
+        if (useCounter) {
+            Counter.setEnabled(this, true)
+            Counter.setCurrent(this, currentSerialStart())
+            Counter.setPadding(this, currentSerialPad())
+            Counter.setFormat(this, currentSerialFormat())
+        }
+
         setupScroll.visibility = View.GONE
         runPanel.visibility = View.VISIBLE
         stopBtn.visibility = View.VISIBLE
+        applyTableSizing()
         // Keep the screen on for the whole batch — the operator's hands are busy.
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         refreshCounters()
@@ -497,6 +673,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
                 setupScroll.visibility = View.VISIBLE
                 runPanel.visibility = View.GONE
                 stopBtn.visibility = View.GONE
+                applyTableSizing()
                 refreshCounters()
             }
             .setNegativeButton("Close screen") { _, _ -> finish() }
@@ -513,34 +690,64 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         runOnNextTapSilently(
             work = { tag ->
                 val uidHex = HexUtil.toHex(tag.id, ":")
-                val url = if (Counter.isEnabled(this) && baseUrl.contains("{n}"))
-                    baseUrl.replace("{n}", Counter.render(Counter.current(this), Counter.padding(this)))
-                else baseUrl
-                val msg = android.nfc.NdefMessage(arrayOf(NdefBuilder.url(url)))
-                val res = TagOperations.writeNdef(tag, msg, makeReadOnly = lockSwitch.isChecked)
-                Triple(uidHex, url, res)
+
+                // Guard 1: this exact tag is already in our log.
+                val previous = BulkLog.findByUid(this, uidHex)
+
+                // Guard 2: the tag already carries NDEF data. cachedNdefMessage
+                // is populated at discovery, so this costs no extra round trip.
+                val cached = android.nfc.tech.Ndef.get(tag)?.cachedNdefMessage
+                val hasData = cached != null && cached.records.any {
+                    it.tnf != android.nfc.NdefRecord.TNF_EMPTY
+                }
+
+                when {
+                    previous != null -> TapResult(
+                        uidHex, previous.url, false,
+                        BulkLog.Outcome.DUPLICATE,
+                        "Already written as #${previous.seq}"
+                    )
+                    skipExisting && hasData -> TapResult(
+                        uidHex, "", false,
+                        BulkLog.Outcome.ALREADY_HAS_DATA,
+                        "Tag already has data — not overwritten"
+                    )
+                    else -> {
+                        val url = if (useCounter)
+                            baseUrl.replace("{n}", Counter.renderCurrent(this))
+                        else baseUrl
+                        val msg = android.nfc.NdefMessage(arrayOf(NdefBuilder.url(url)))
+                        val res = TagOperations.writeNdef(tag, msg, makeReadOnly = willLock)
+                        TapResult(
+                            uidHex, url, res.success && willLock,
+                            if (res.success) BulkLog.Outcome.WRITTEN else BulkLog.Outcome.FAILED,
+                            if (res.success) "" else res.message
+                        )
+                    }
+                }
             },
-            onResult = { (uidHex, url, res) ->
-                val locked = lockSwitch.isChecked
-                if (res.success) {
+            onResult = { r ->
+                val ok = r.outcome == BulkLog.Outcome.WRITTEN
+                if (ok) {
                     sessionOk++
-                    if (Counter.isEnabled(this) && baseUrl.contains("{n}")) Counter.bumpAfterWrite(this)
+                    if (useCounter) Counter.bumpAfterWrite(this)
                     buzz(true)
-                    showSuccessFlash(url)
+                    showSuccessFlash(r.url)
                 } else {
                     sessionFail++
                     buzz(false)
-                    showFailureFlash(res.message)
+                    showFailureFlash(r.message)
                 }
 
                 // Persist + push the new row to the top of the table.
                 val entry = BulkLog.append(
                     ctx = this,
-                    uid = uidHex,
-                    url = url,
-                    locked = locked && res.success,
-                    success = res.success,
-                    error = if (res.success) "" else res.message
+                    uid = r.uid,
+                    url = r.url,
+                    locked = r.locked,
+                    success = ok,
+                    error = r.message,
+                    outcome = r.outcome
                 )
                 adapter.insertAtTop(entry)
                 recycler.scrollToPosition(0)
@@ -548,10 +755,10 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
                 History.record(
                     this, History.Action.WRITE,
-                    uid = uidHex,
-                    tagType = if (locked) "Bulk write+lock" else "Bulk write",
-                    summary = url + (if (res.success) "" else " — ${res.message}"),
-                    success = res.success
+                    uid = r.uid,
+                    tagType = if (willLock) "Bulk write+lock" else "Bulk write",
+                    summary = if (ok) r.url else "${r.outcome.name}: ${r.message}",
+                    success = ok
                 )
 
                 // Re-arm immediately so the next tag can be tapped right away.
@@ -559,6 +766,15 @@ class BulkWriteLockActivity : BaseNfcActivity() {
             }
         )
     }
+
+    /** Outcome of one tag tap, computed off the main thread. */
+    private data class TapResult(
+        val uid: String,
+        val url: String,
+        val locked: Boolean,
+        val outcome: BulkLog.Outcome,
+        val message: String
+    )
 
     // ── status rendering ──
 
@@ -677,26 +893,24 @@ class BulkWriteLockActivity : BaseNfcActivity() {
             holder.detail.text = if (e.success) "$time · ${e.url}"
                                  else "$time · ${e.error}"
 
-            when {
-                !e.success -> {
+            when (e.outcome) {
+                BulkLog.Outcome.DUPLICATE -> {
+                    holder.status.text = "⟳ DUPLICATE"
+                    holder.status.setBackgroundResource(R.drawable.bg_badge_warn)
+                    holder.status.setTextColor(getColor(R.color.warning))
+                }
+                BulkLog.Outcome.ALREADY_HAS_DATA -> {
+                    holder.status.text = "⚠ HAS DATA"
+                    holder.status.setBackgroundResource(R.drawable.bg_badge_warn)
+                    holder.status.setTextColor(getColor(R.color.warning))
+                }
+                BulkLog.Outcome.FAILED -> {
                     holder.status.text = "✗ FAILED"
                     holder.status.setBackgroundResource(R.drawable.bg_badge_error)
                     holder.status.setTextColor(getColor(R.color.error))
                 }
-                e.duplicate -> {
-                    // Same UID written earlier — flag it so a double-tap or a
-                    // re-used tag doesn't go unnoticed in a long run.
-                    holder.status.text = if (e.locked) "✓ DUP·LOCK" else "✓ DUPLICATE"
-                    holder.status.setBackgroundResource(R.drawable.bg_badge_warn)
-                    holder.status.setTextColor(getColor(R.color.warning))
-                }
-                e.locked -> {
-                    holder.status.text = "✓ LOCKED"
-                    holder.status.setBackgroundResource(R.drawable.bg_badge_success)
-                    holder.status.setTextColor(getColor(R.color.success))
-                }
-                else -> {
-                    holder.status.text = "✓ WRITTEN"
+                BulkLog.Outcome.WRITTEN -> {
+                    holder.status.text = if (e.locked) "✓ LOCKED" else "✓ WRITTEN"
                     holder.status.setBackgroundResource(R.drawable.bg_badge_success)
                     holder.status.setTextColor(getColor(R.color.success))
                 }
@@ -719,12 +933,16 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         sb.append("Tag #${e.seq}\n\n")
         sb.append("UID: ${e.uid.ifBlank { "unknown" }}\n")
         sb.append("Time: $full\n")
-        sb.append("Status: ${if (e.success) "Written" else "Failed"}")
-        if (e.success && e.locked) sb.append(" & locked")
+        sb.append("Status: ")
+        sb.append(when (e.outcome) {
+            BulkLog.Outcome.WRITTEN -> if (e.locked) "Written & locked" else "Written"
+            BulkLog.Outcome.DUPLICATE -> "Skipped — duplicate tag"
+            BulkLog.Outcome.ALREADY_HAS_DATA -> "Skipped — tag already had data"
+            BulkLog.Outcome.FAILED -> "Failed"
+        })
         sb.append("\n")
-        if (e.duplicate) sb.append("⚠ This UID was already written earlier.\n")
-        sb.append("\nURL:\n${e.url}")
-        if (!e.success) sb.append("\n\nError:\n${e.error}")
+        if (e.url.isNotBlank()) sb.append("\nURL:\n${e.url}")
+        if (e.error.isNotBlank()) sb.append("\n\nDetails:\n${e.error}")
 
         MaterialAlertDialogBuilder(this)
             .setTitle("Row details")

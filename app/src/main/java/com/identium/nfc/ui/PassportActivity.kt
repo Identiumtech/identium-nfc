@@ -283,7 +283,7 @@ class PassportActivity : BaseNfcActivity() {
         }
         val pid = productIdField.text?.toString().orEmpty()
         val applied = if (Counter.isEnabled(this) && pid.contains("{n}"))
-            pid.replace("{n}", Counter.render(Counter.current(this), Counter.padding(this)))
+            pid.replace("{n}", Counter.renderCurrent(this))
         else pid
         previewView.text = "Will write:\n" + id.buildUrl(applied, "<TAG-UID>")
     }
@@ -299,7 +299,7 @@ class PassportActivity : BaseNfcActivity() {
             work = { tag ->
                 val uidHex = HexUtil.toHex(tag.id, separator = "")
                 val pid = if (Counter.isEnabled(this) && rawPid.contains("{n}"))
-                    rawPid.replace("{n}", Counter.render(Counter.current(this), Counter.padding(this)))
+                    rawPid.replace("{n}", Counter.renderCurrent(this))
                 else rawPid
                 val finalUrl = id.buildUrl(pid, uidHex)
                 val msg = android.nfc.NdefMessage(arrayOf(NdefBuilder.url(finalUrl)))

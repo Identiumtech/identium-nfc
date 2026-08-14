@@ -71,9 +71,21 @@ class SettingsActivity : AppCompatActivity() {
         }
         root.addView(counterSwitch, lp().apply { topMargin = dp(8) })
 
+        // Serial format — hex is common for cable-tie / asset serials.
+        root.addView(caption("Serial format").withTopMargin(dp(12)))
+        val formatSpinner = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(
+                this@SettingsActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                Counter.Format.values().map { it.label }
+            )
+            setSelection(Counter.Format.values().indexOf(Counter.format(this@SettingsActivity)))
+        }
+        root.addView(formatSpinner, lp())
+
         val valueRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val valueField = numField("Current value", Counter.current(this).toString())
-        val padField = numField("Padding (zeros)", Counter.padding(this).toString())
+        val padField = numField("Digits (0 = auto)", Counter.padding(this).toString())
         valueRow.addView(valueField, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         valueRow.addView(padField, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
             marginStart = dp(8)
@@ -85,9 +97,12 @@ class SettingsActivity : AppCompatActivity() {
         applyBtn.setOnClickListener {
             val v = (valueField.editText?.text?.toString().orEmpty()).toIntOrNull() ?: 1
             val p = (padField.editText?.text?.toString().orEmpty()).toIntOrNull() ?: 0
+            val f = Counter.Format.values()
+                .getOrElse(formatSpinner.selectedItemPosition) { Counter.Format.DECIMAL }
             Counter.setCurrent(this, v.coerceAtLeast(0))
             Counter.setPadding(this, p)
-            Toast.makeText(this, "Counter saved: ${Counter.render(v, p)}", Toast.LENGTH_SHORT).show()
+            Counter.setFormat(this, f)
+            Toast.makeText(this, "Counter saved: ${Counter.render(v, p, f)}", Toast.LENGTH_SHORT).show()
         }
 
         // Data --------------------------------------------------------

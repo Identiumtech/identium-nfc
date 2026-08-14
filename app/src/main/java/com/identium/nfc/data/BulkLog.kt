@@ -8,14 +8,19 @@ import org.json.JSONObject
  * Persistent log of tags written by the Bulk write & lock screen.
  *
  * Separate from [History] on purpose: History is a 200-entry mixed log of
- * every operation type, while a bulk run can burn through hundreds of tags
- * in one sitting and needs its own bulk-specific fields (URL written, lock
- * state, sequence number).
+ * every operation type, while a bulk run can burn through thousands of tags
+ * and needs its own bulk-specific fields (URL written, lock state, sequence
+ * number).
  *
- * Backed by SharedPreferences JSON — same approach as the rest of the app,
- * no extra dependency. The entry list is cached in memory after [load] so a
- * 500-row log doesn't get re-parsed on every single tag; appends serialize
- * from the cache and write through with `apply()` (async, off the UI thread).
+ * Two distinct things are stored, and keeping them separate matters:
+ *
+ *  - **Lifetime counters** (total / written / locked / failed). These are
+ *    plain persisted integers that only ever go up. They are NOT derived
+ *    from the row list, because the row list is capped — deriving them
+ *    meant the totals froze once the cap was hit, and could even count
+ *    *down* as old successful rows were evicted.
+ *  - **Recent rows** for the on-screen table, capped at [MAX] newest-first
+ *    so the prefs file stays a sane size.
  *
  * All mutating calls happen from the main thread (the NFC result callback),
  * so no locking is required.
@@ -25,9 +30,15 @@ object BulkLog {
     private const val PREFS = "identium_bulklog"
     private const val KEY_ENTRIES = "entries"
     private const val KEY_TOTAL = "lifetime_total"
+    private const val KEY_OK = "lifetime_ok"
+    private const val KEY_LOCKED = "lifetime_locked"
+    private const val KEY_FAIL = "lifetime_fail"
 
-    /** Newest-first cap. Older rows fall off the end. */
+    /** Newest-first row cap. Lifetime counters are unaffected by this. */
     const val MAX = 500
+
+    /** Why a tag attempt did not result in a write. */
+    enum class Outcome { WRITTEN, DUPLICATE, ALREADY_HAS_DATA, FAILED }
 
     data class Entry(
         /** Lifetime sequence number — keeps counting across sessions. */
@@ -38,13 +49,19 @@ object BulkLog {
         val locked: Boolean,
         val success: Boolean,
         val error: String = "",
-        /** True when this UID already appeared earlier in the log. */
-        val duplicate: Boolean = false
+        val outcome: Outcome = if (success) Outcome.WRITTEN else Outcome.FAILED
+    )
+
+    data class Counts(
+        val total: Int,
+        val written: Int,
+        val locked: Int,
+        val failed: Int
     )
 
     private var cache: MutableList<Entry>? = null
 
-    /** Newest first. */
+    /** Newest first. Only the most recent [MAX] rows are retained. */
     fun load(ctx: Context): MutableList<Entry> {
         cache?.let { return it }
         val raw = prefs(ctx).getString(KEY_ENTRIES, "[]") ?: "[]"
@@ -53,15 +70,17 @@ object BulkLog {
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
+                val ok = o.optBoolean("ok", true)
                 list += Entry(
                     seq = o.optInt("seq", arr.length() - i),
                     timestamp = o.optLong("ts"),
                     uid = o.optString("uid"),
                     url = o.optString("url"),
                     locked = o.optBoolean("locked", false),
-                    success = o.optBoolean("ok", true),
+                    success = ok,
                     error = o.optString("err"),
-                    duplicate = o.optBoolean("dup", false)
+                    outcome = runCatching { Outcome.valueOf(o.optString("out")) }
+                        .getOrDefault(if (ok) Outcome.WRITTEN else Outcome.FAILED)
                 )
             }
         } catch (_: Exception) {
@@ -72,9 +91,18 @@ object BulkLog {
     }
 
     /**
-     * Append a result and persist. Returns the created entry (already at
-     * index 0 of the in-memory list) so the caller can insert it into the
-     * table without reloading.
+     * Look up a previously logged tag by UID. Only searches the retained
+     * rows, so a UID written more than [MAX] tags ago won't be found —
+     * enough to catch a re-tap during a production run.
+     */
+    fun findByUid(ctx: Context, uid: String): Entry? {
+        if (uid.isBlank()) return null
+        return load(ctx).firstOrNull { it.uid == uid }
+    }
+
+    /**
+     * Append a result and persist. Lifetime counters advance here and are
+     * never recomputed from the (capped) row list.
      */
     fun append(
         ctx: Context,
@@ -82,11 +110,17 @@ object BulkLog {
         url: String,
         locked: Boolean,
         success: Boolean,
-        error: String = ""
+        error: String = "",
+        outcome: Outcome = if (success) Outcome.WRITTEN else Outcome.FAILED
     ): Entry {
         val list = load(ctx)
-        val isDuplicate = uid.isNotBlank() && list.any { it.uid == uid }
-        val nextSeq = nextSeq(ctx)
+        val p = prefs(ctx)
+
+        val nextSeq = p.getInt(KEY_TOTAL, 0) + 1
+        val newOk = p.getInt(KEY_OK, 0) + if (success) 1 else 0
+        val newLocked = p.getInt(KEY_LOCKED, 0) + if (success && locked) 1 else 0
+        val newFail = p.getInt(KEY_FAIL, 0) + if (success) 0 else 1
+
         val entry = Entry(
             seq = nextSeq,
             timestamp = System.currentTimeMillis(),
@@ -95,36 +129,46 @@ object BulkLog {
             locked = locked,
             success = success,
             error = error,
-            duplicate = isDuplicate
+            outcome = outcome
         )
         list.add(0, entry)
         while (list.size > MAX) list.removeAt(list.size - 1)
-        persist(ctx, list, nextSeq)
+
+        p.edit()
+            .putString(KEY_ENTRIES, serialize(list))
+            .putInt(KEY_TOTAL, nextSeq)
+            .putInt(KEY_OK, newOk)
+            .putInt(KEY_LOCKED, newLocked)
+            .putInt(KEY_FAIL, newFail)
+            .apply()
         return entry
     }
 
+    /** Lifetime totals — unaffected by the row cap, never decrease. */
+    fun counts(ctx: Context): Counts {
+        val p = prefs(ctx)
+        return Counts(
+            total = p.getInt(KEY_TOTAL, 0),
+            written = p.getInt(KEY_OK, 0),
+            locked = p.getInt(KEY_LOCKED, 0),
+            failed = p.getInt(KEY_FAIL, 0)
+        )
+    }
+
+    /** Clears the visible rows but keeps lifetime totals and numbering. */
     fun clear(ctx: Context) {
         cache = mutableListOf()
         prefs(ctx).edit().remove(KEY_ENTRIES).apply()
-        // Deliberately keeps KEY_TOTAL so sequence numbers stay unique and
-        // monotonic even after the visible log is wiped.
     }
 
-    /** Wipe the log AND reset numbering back to #1. */
+    /** Wipes rows AND resets every lifetime counter back to zero. */
     fun resetAll(ctx: Context) {
         cache = mutableListOf()
         prefs(ctx).edit().clear().apply()
     }
 
-    fun counts(ctx: Context): Triple<Int, Int, Int> {
-        val list = load(ctx)
-        val ok = list.count { it.success }
-        val fail = list.size - ok
-        return Triple(list.size, ok, fail)
-    }
-
     fun toCsv(entries: List<Entry>): String {
-        val sb = StringBuilder("seq,timestamp_ms,iso_time,uid,url,locked,status,error\n")
+        val sb = StringBuilder("seq,timestamp_ms,iso_time,uid,url,locked,status,outcome,error\n")
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
         for (e in entries) {
             sb.append(e.seq).append(',')
@@ -134,6 +178,7 @@ object BulkLog {
             sb.append('"').append(csv(e.url)).append('"').append(',')
             sb.append(if (e.locked) "locked" else "unlocked").append(',')
             sb.append(if (e.success) "written" else "failed").append(',')
+            sb.append(e.outcome.name).append(',')
             sb.append('"').append(csv(e.error)).append('"')
             sb.append('\n')
         }
@@ -144,10 +189,7 @@ object BulkLog {
 
     private fun csv(s: String) = s.replace("\"", "\"\"").replace("\n", " ")
 
-    private fun nextSeq(ctx: Context): Int =
-        prefs(ctx).getInt(KEY_TOTAL, 0) + 1
-
-    private fun persist(ctx: Context, list: List<Entry>, lifetimeTotal: Int) {
+    private fun serialize(list: List<Entry>): String {
         val arr = JSONArray()
         for (e in list) {
             arr.put(JSONObject().apply {
@@ -158,13 +200,10 @@ object BulkLog {
                 put("locked", e.locked)
                 put("ok", e.success)
                 put("err", e.error)
-                put("dup", e.duplicate)
+                put("out", e.outcome.name)
             })
         }
-        prefs(ctx).edit()
-            .putString(KEY_ENTRIES, arr.toString())
-            .putInt(KEY_TOTAL, lifetimeTotal)
-            .apply()
+        return arr.toString()
     }
 
     private fun prefs(ctx: Context) =

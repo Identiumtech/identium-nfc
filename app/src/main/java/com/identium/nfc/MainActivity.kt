@@ -281,7 +281,7 @@ class MainActivity : AppCompatActivity() {
         is PendingOperation.Write -> {
             // Apply the auto-counter to {n} placeholders before serializing.
             val recordsForWrite = if (Counter.isEnabled(this))
-                Counter.applyTo(op.records, Counter.current(this), Counter.padding(this))
+                Counter.applyTo(op.records, Counter.current(this), Counter.padding(this), Counter.format(this))
             else op.records
             val msg = android.nfc.NdefMessage(recordsForWrite.map { it.toNdef() }.toTypedArray())
             OpOutcome.WroteResult(TagOperations.writeNdef(tag, msg, op.lockAfter))

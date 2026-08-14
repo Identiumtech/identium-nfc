@@ -95,7 +95,7 @@ class WriteFragment : Fragment() {
         val first = records.first()
         val payload = first.toQrText()
         val applied = if (Counter.isEnabled(requireContext()) && payload.contains("{n}"))
-            payload.replace("{n}", Counter.render(Counter.current(requireContext()), Counter.padding(requireContext())))
+            payload.replace("{n}", Counter.renderCurrent(requireContext()))
         else payload
         if (records.size > 1) {
             Toast.makeText(
@@ -115,7 +115,7 @@ class WriteFragment : Fragment() {
     private fun renderCounterStatus() {
         val ctx = context ?: return
         if (Counter.isEnabled(ctx)) {
-            val current = Counter.render(Counter.current(ctx), Counter.padding(ctx))
+            val current = Counter.renderCurrent(ctx)
             binding.counterStatus.visibility = View.VISIBLE
             binding.counterStatus.text = "Auto-counter ON: {n} → $current (next write will use this and bump)"
         } else {
