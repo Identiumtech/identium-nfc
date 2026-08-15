@@ -12,6 +12,11 @@
     -->
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Scan-to-encode reads QR codes with the camera. Requested at runtime,
+         and the feature is optional so phones without a camera can install. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -132,6 +137,12 @@
         <activity
             android:name=".ui.QrCodeActivity"
             android:label="QR code"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".ui.ScanToEncodeActivity"
+            android:label="Scan to encode"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout"
             android:parentActivityName=".MainActivity" />
 
         <activity

@@ -14,6 +14,8 @@ import com.google.android.material.button.MaterialButton
 import com.identium.nfc.R
 import com.identium.nfc.nfc.HexUtil
 import com.identium.nfc.nfc.Ntag21x
+import com.identium.nfc.util.qr.QrDecoder
+import com.identium.nfc.util.qr.QrDetector
 import com.identium.nfc.nfc.TagOperations
 
 /**
@@ -61,6 +63,18 @@ class DiagnosticActivity : BaseNfcActivity() {
             setOnClickListener { startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS)) }
         }
         root.addView(nfcSettings, lp().apply { topMargin = dp(20) })
+
+        // ─── QR engine self-test ───
+        root.addView(section("QR engine").apply {
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(20)
+        })
+        val qrResult = card().apply { text = "Not run yet." }
+        val qrBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Run QR self-test"
+            setOnClickListener { qrResult.text = runQrSelfTest() }
+        }
+        root.addView(qrBtn, lp())
+        root.addView(qrResult, lp().apply { topMargin = dp(8) })
 
         renderPhoneCard()
 
@@ -132,6 +146,55 @@ class DiagnosticActivity : BaseNfcActivity() {
         }
         summary.visibility = TextView.VISIBLE
         summary.text = "Verdict\n\n$verdict"
+    }
+
+    /**
+     * End-to-end exercise of the in-app QR engine: encode a payload, raster it
+     * to a bitmap, then push that bitmap back through the detector and decoder.
+     * Verifies the whole scan-to-encode path on this actual device without
+     * needing a printed code.
+     */
+    private fun runQrSelfTest(): String {
+        val samples = listOf(
+            "https://identium.in/t/000000FA" to com.identium.nfc.util.QrEncoder.Ecc.MEDIUM,
+            "WIFI:T:WPA;S:Factory;P:s3cret!;;" to com.identium.nfc.util.QrEncoder.Ecc.QUARTILE,
+            "ASSET-0001" to com.identium.nfc.util.QrEncoder.Ecc.HIGH,
+            "https://example.com/a/very/long/path?serial=0000004D&batch=2026-08" to
+                    com.identium.nfc.util.QrEncoder.Ecc.LOW
+        )
+        val sb = StringBuilder()
+        var passed = 0
+        val started = System.currentTimeMillis()
+        for ((payload, ecc) in samples) {
+            val outcome = try {
+                val qr = com.identium.nfc.util.QrEncoder.encode(payload, ecc)
+                val bmp = qr.toBitmap(scale = 8, border = 4)
+                val w = bmp.width
+                val h = bmp.height
+                val pixels = IntArray(w * h)
+                bmp.getPixels(pixels, 0, w, 0, 0, w, h)
+                val luma = ByteArray(w * h)
+                for (i in pixels.indices) {
+                    val p = pixels[i]
+                    val r = (p shr 16) and 0xFF
+                    val g = (p shr 8) and 0xFF
+                    val b = p and 0xFF
+                    luma[i] = ((r * 299 + g * 587 + b * 114) / 1000).toByte()
+                }
+                val matrix = QrDetector.detectAndSample(luma, w, h)
+                val decoded = QrDecoder.decode(matrix)
+                if (decoded == payload) { passed++; "✓ v${qr.version} ${ecc.name}" }
+                else "✗ ${ecc.name}: got \"${decoded.take(24)}\""
+            } catch (e: Exception) {
+                "✗ ${ecc.name}: ${e.message}"
+            }
+            sb.append(outcome).append("  ").append(payload.take(28)).append("\n")
+        }
+        val elapsed = System.currentTimeMillis() - started
+        sb.append("\n$passed/${samples.size} passed in ${elapsed}ms")
+        sb.append(if (passed == samples.size) "\nQR encode + detect + decode all OK."
+        else "\nSome cases failed — please report this.")
+        return sb.toString()
     }
 
     private fun check(cond: Boolean, label: String): String =

@@ -82,6 +82,9 @@ class OtherFragment : Fragment() {
         )
 
         val bulk = listOf(
+            Action("Scan to encode", "Scan a QR code and write it straight to an NFC tag — single or continuous") {
+                startActivity(Intent(requireContext(), ScanToEncodeActivity::class.java))
+            },
             Action("Bulk write & lock", "Same URL on tag after tag — writes, locks and re-arms in one tap") {
                 startActivity(Intent(requireContext(), BulkWriteLockActivity::class.java))
             },
