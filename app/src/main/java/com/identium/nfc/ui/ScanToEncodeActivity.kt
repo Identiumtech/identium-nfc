@@ -41,6 +41,7 @@ import com.identium.nfc.nfc.TagOperations
 import com.identium.nfc.util.qr.QrDecoder
 import com.identium.nfc.util.qr.QrDetector
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 
 /**
  * Scan to encode — read a QR code with the camera and write its contents
@@ -85,7 +86,25 @@ class ScanToEncodeActivity : BaseNfcActivity() {
     private var previewRequestBuilder: CaptureRequest.Builder? = null
     private var cameraId: String? = null
     private var previewSize = Size(1280, 720)
+    /**
+     * Analysis runs on its own, much smaller stream. Detection cost is linear
+     * in pixel count, so feeding it a full-resolution preview frame is what
+     * makes a scanner feel dead — ~640x480 in, halved again below, keeps a
+     * frame under ~30ms.
+     */
+    private var analysisSize = Size(640, 480)
     private val decoding = AtomicBoolean(false)
+
+    // Reused across frames — allocating these per frame produced megabytes of
+    // garbage a second and stalled the pipeline on GC.
+    private var lumaBuf: ByteArray? = null
+    private var rowBuf: ByteArray? = null
+    private var workBuf: ByteArray? = null
+
+    private var frameCounter = 0
+    private var framesThisSecond = 0
+    private var lastFpsStamp = 0L
+    @Volatile private var analysisFps = 0
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -282,14 +301,30 @@ class ScanToEncodeActivity : BaseNfcActivity() {
 
             val map = manager.getCameraCharacteristics(id)
                 .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            val sizes = map?.getOutputSizes(android.graphics.ImageFormat.YUV_420_888)
-            // ~720p is plenty for QR and keeps per-frame decoding cheap.
-            previewSize = sizes?.filter { it.width <= 1600 && it.height <= 1200 }
-                ?.maxByOrNull { it.width.toLong() * it.height }
-                ?: Size(1280, 720)
+            val yuvSizes = map?.getOutputSizes(android.graphics.ImageFormat.YUV_420_888)?.toList().orEmpty()
+
+            // Preview can be big and pretty — the user aims with it.
+            previewSize = yuvSizes.filter { it.width <= 1920 && it.height <= 1080 }
+                .maxByOrNull { it.width.toLong() * it.height } ?: Size(1280, 720)
+
+            // Analysis stream stays small, but must share the preview's aspect
+            // ratio — otherwise the analysed field of view differs from what
+            // the user is aiming with, and centred codes get cropped away.
+            val previewAspect = previewSize.width.toFloat() / previewSize.height
+            analysisSize = yuvSizes
+                .filter { it.width in 320..1024 }
+                .filter { abs(it.width.toFloat() / it.height - previewAspect) < 0.05f }
+                .minByOrNull { abs(it.width * it.height - 640 * 480) }
+                ?: yuvSizes
+                    .filter { abs(it.width.toFloat() / it.height - previewAspect) < 0.05f }
+                    .minByOrNull { it.width.toLong() * it.height }
+                ?: yuvSizes.minByOrNull { it.width.toLong() * it.height }
+                ?: Size(640, 480)
+
+            lumaBuf = null; rowBuf = null; workBuf = null
 
             imageReader = ImageReader.newInstance(
-                previewSize.width, previewSize.height,
+                analysisSize.width, analysisSize.height,
                 android.graphics.ImageFormat.YUV_420_888, 2
             ).apply { setOnImageAvailableListener(onFrame, backgroundHandler) }
 
@@ -381,24 +416,67 @@ class ScanToEncodeActivity : BaseNfcActivity() {
             val height = image.height
             val plane = image.planes[0]
             val rowStride = plane.rowStride
+            val pixelStride = plane.pixelStride
             val buffer = plane.buffer
-            // Copy the Y plane, honouring row stride (it is often > width).
-            val luma = ByteArray(width * height)
-            val row = ByteArray(rowStride)
+
+            // Copy the Y plane honouring both strides. rowStride is usually
+            // > width, and a few devices report pixelStride > 1 even for Y.
+            val luma = lumaBuf ?: ByteArray(width * height).also { lumaBuf = it }
+            val row = rowBuf?.takeIf { it.size >= rowStride }
+                ?: ByteArray(rowStride).also { rowBuf = it }
+            buffer.rewind()
             var offset = 0
             for (y in 0 until height) {
                 val toRead = minOf(rowStride, buffer.remaining())
                 if (toRead <= 0) break
                 buffer.get(row, 0, toRead)
-                System.arraycopy(row, 0, luma, offset, minOf(width, toRead))
+                if (pixelStride == 1) {
+                    System.arraycopy(row, 0, luma, offset, minOf(width, toRead))
+                } else {
+                    var x = 0
+                    var src = 0
+                    while (x < width && src < toRead) {
+                        luma[offset + x] = row[src]; x++; src += pixelStride
+                    }
+                }
                 offset += width
             }
 
+            // Two passes alternate so both framings work without doubling cost:
+            //  - even frames: whole frame at half resolution (code fills the view)
+            //  - odd frames : centre crop at full resolution (code is small/far)
+            // On devices that only offer a small analysis stream, halving would
+            // leave too few pixels per module, so use the frame as-is.
+            val useHalf = width > 480
+            val aW = if (useHalf) width / 2 else width
+            val aH = if (useHalf) height / 2 else height
+            val work = workBuf?.takeIf { it.size >= aW * aH }
+                ?: ByteArray(aW * aH).also { workBuf = it }
+
+            frameCounter++
+            if (!useHalf) {
+                System.arraycopy(luma, 0, work, 0, aW * aH)
+            } else if (frameCounter % 2 == 0) {
+                downsampleHalf(luma, width, height, work)
+            } else {
+                centreCrop(luma, width, height, work, aW, aH)
+            }
+
             val text = try {
-                val matrix = QrDetector.detectAndSample(luma, width, height)
+                val matrix = QrDetector.detectAndSample(work, aW, aH)
                 QrDecoder.decode(matrix)
             } catch (_: Exception) {
                 null            // no code in this frame — very common, keep scanning
+            }
+
+            // Cheap liveness signal so a stalled pipeline is obvious on screen.
+            framesThisSecond++
+            val now = System.currentTimeMillis()
+            if (now - lastFpsStamp >= 1000) {
+                analysisFps = framesThisSecond
+                framesThisSecond = 0
+                lastFpsStamp = now
+                mainHandler.post { if (phase == Phase.SCANNING) renderState() }
             }
 
             if (text != null) {
@@ -409,6 +487,34 @@ class ScanToEncodeActivity : BaseNfcActivity() {
             decoding.set(false)
         } finally {
             try { image.close() } catch (_: Exception) {}
+        }
+    }
+
+    /** Box-average 2x2 into [out]. Halves the pixel count and smooths noise. */
+    private fun downsampleHalf(src: ByteArray, w: Int, h: Int, out: ByteArray) {
+        val ow = w / 2
+        val oh = h / 2
+        for (y in 0 until oh) {
+            val r0 = (y * 2) * w
+            val r1 = r0 + w
+            val o = y * ow
+            for (x in 0 until ow) {
+                val i = x * 2
+                val a = src[r0 + i].toInt() and 0xFF
+                val b = src[r0 + i + 1].toInt() and 0xFF
+                val c = src[r1 + i].toInt() and 0xFF
+                val d = src[r1 + i + 1].toInt() and 0xFF
+                out[o + x] = ((a + b + c + d) shr 2).toByte()
+            }
+        }
+    }
+
+    /** Copy the centre [cw]x[ch] region at full resolution. */
+    private fun centreCrop(src: ByteArray, w: Int, h: Int, out: ByteArray, cw: Int, ch: Int) {
+        val left = (w - cw) / 2
+        val top = (h - ch) / 2
+        for (y in 0 until ch) {
+            System.arraycopy(src, (top + y) * w + left, out, y * cw, cw)
         }
     }
 
@@ -512,7 +618,8 @@ class ScanToEncodeActivity : BaseNfcActivity() {
             Phase.SCANNING -> {
                 statusTitle.text = "Point at a QR code"
                 statusTitle.setTextColor(getColor(R.color.brand_blue))
-                statusDetail.text = "Hold the code inside the square. Detection is automatic."
+                statusDetail.text = "Hold the code inside the square. Detection is automatic." +
+                        if (analysisFps > 0) "   ·   ${analysisFps} fps" else ""
                 payloadView.visibility = View.GONE
                 actionBtn.text = "Scanning…"
             }
