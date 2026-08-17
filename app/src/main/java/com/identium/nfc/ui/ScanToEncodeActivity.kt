@@ -64,6 +64,7 @@ class ScanToEncodeActivity : BaseNfcActivity() {
     private lateinit var textureView: TextureView
     private lateinit var statusTitle: TextView
     private lateinit var statusDetail: TextView
+    private lateinit var diagView: TextView
     private lateinit var payloadView: TextView
     private lateinit var counterView: TextView
     private lateinit var continuousSwitch: MaterialSwitch
@@ -71,8 +72,18 @@ class ScanToEncodeActivity : BaseNfcActivity() {
     private lateinit var actionBtn: MaterialButton
     private lateinit var torchBtn: MaterialButton
 
-    private var phase = Phase.NEED_PERMISSION
+    /**
+     * Written on the main thread, read on the camera's background thread every
+     * frame. Without @Volatile there is no happens-before edge between the two,
+     * so the analysis thread could keep observing the initial NEED_PERMISSION
+     * and silently skip every single frame — a live preview with a scanner that
+     * never fires.
+     */
+    @Volatile private var phase = Phase.NEED_PERMISSION
     private var lastPayload: String? = null
+    /** Last pipeline error, surfaced on screen so failures aren't silent. */
+    @Volatile private var lastStageError: String = "—"
+    @Volatile private var framesAnalysed = 0
     private var sessionWritten = 0
     private var sessionFailed = 0
     private var torchOn = false
@@ -105,8 +116,12 @@ class ScanToEncodeActivity : BaseNfcActivity() {
     private var framesThisSecond = 0
     private var lastFpsStamp = 0L
     @Volatile private var analysisFps = 0
+    @Volatile private var analysisDims = "—"
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Pixel budget per analysed frame; ~100k keeps a frame near 30ms. */
+    private val TARGET_ANALYSIS_PIXELS = 120_000
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -186,8 +201,15 @@ class ScanToEncodeActivity : BaseNfcActivity() {
             setPadding(dp(10), dp(8), dp(10), dp(8))
             visibility = View.GONE
         }
+        diagView = TextView(this).apply {
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(getColor(R.color.text_tertiary))
+            text = "camera starting…"
+        }
         statusBox.addView(statusTitle)
         statusBox.addView(statusDetail)
+        statusBox.addView(diagView, lp().apply { topMargin = dp(2) })
         statusBox.addView(payloadView, lp().apply { topMargin = dp(8) })
         root.addView(statusBox, lp())
 
@@ -371,7 +393,14 @@ class ScanToEncodeActivity : BaseNfcActivity() {
                         } catch (_: Exception) {}
                     }
                     override fun onConfigureFailed(session: CameraCaptureSession) {
-                        runOnUiThread { toast("Camera configuration failed") }
+                        // Some devices reject a preview + analysis pair at these
+                        // sizes. Fall back to a single stream at the analysis
+                        // size — a lower-res preview beats a dead scanner.
+                        runOnUiThread {
+                            lastStageError = "session failed, retrying"
+                            diagView.text = "camera session failed — retrying at ${analysisSize.width}×${analysisSize.height}"
+                        }
+                        retrySingleStream()
                     }
                 },
                 backgroundHandler
@@ -379,6 +408,42 @@ class ScanToEncodeActivity : BaseNfcActivity() {
         } catch (e: Exception) {
             toast("Camera session error: ${e.message}")
         }
+    }
+
+    /**
+     * Last-resort path: preview and analysis share one stream at the analysis
+     * size. Used only when the device refuses the two-stream configuration.
+     */
+    private fun retrySingleStream() {
+        val device = cameraDevice ?: return
+        val texture = textureView.surfaceTexture ?: return
+        texture.setDefaultBufferSize(analysisSize.width, analysisSize.height)
+        val previewSurface = Surface(texture)
+        val readerSurface = imageReader?.surface ?: return
+        try {
+            previewRequestBuilder = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+                addTarget(previewSurface)
+                addTarget(readerSurface)
+                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+            }
+            @Suppress("DEPRECATION")
+            device.createCaptureSession(
+                listOf(previewSurface, readerSurface),
+                object : CameraCaptureSession.StateCallback() {
+                    override fun onConfigured(session: CameraCaptureSession) {
+                        captureSession = session
+                        try {
+                            session.setRepeatingRequest(previewRequestBuilder!!.build(), null, backgroundHandler)
+                            runOnUiThread { lastStageError = "single-stream ok" }
+                        } catch (_: Exception) {}
+                    }
+                    override fun onConfigureFailed(session: CameraCaptureSession) {
+                        runOnUiThread { toast("Camera could not be configured on this device") }
+                    }
+                },
+                backgroundHandler
+            )
+        } catch (_: Exception) {}
     }
 
     private fun closeCamera() {
@@ -442,31 +507,42 @@ class ScanToEncodeActivity : BaseNfcActivity() {
                 offset += width
             }
 
-            // Two passes alternate so both framings work without doubling cost:
-            //  - even frames: whole frame at half resolution (code fills the view)
-            //  - odd frames : centre crop at full resolution (code is small/far)
-            // On devices that only offer a small analysis stream, halving would
-            // leave too few pixels per module, so use the frame as-is.
-            val useHalf = width > 480
-            val aW = if (useHalf) width / 2 else width
-            val aH = if (useHalf) height / 2 else height
+            // Work out a divisor that brings the frame down to a fixed pixel
+            // budget, whatever size the device actually handed us. Requesting
+            // a small stream is not enough — devices routinely give back
+            // 1280x720 or larger, and detection cost is linear in pixels.
+            var div = 1
+            while ((width / div) * (height / div) > TARGET_ANALYSIS_PIXELS && div < 6) div++
+            val aW = width / div
+            val aH = height / div
             val work = workBuf?.takeIf { it.size >= aW * aH }
                 ?: ByteArray(aW * aH).also { workBuf = it }
 
+            // Two passes alternate so both framings work without doubling cost:
+            //  - even frames: whole frame scaled down (code fills the view)
+            //  - odd frames : centre crop at full resolution (code small/far)
             frameCounter++
-            if (!useHalf) {
+            if (div == 1) {
                 System.arraycopy(luma, 0, work, 0, aW * aH)
             } else if (frameCounter % 2 == 0) {
-                downsampleHalf(luma, width, height, work)
+                downsampleBy(luma, width, height, work, div)
             } else {
                 centreCrop(luma, width, height, work, aW, aH)
             }
+            analysisDims = "${aW}×${aH}"
 
+            framesAnalysed++
             val text = try {
                 val matrix = QrDetector.detectAndSample(work, aW, aH)
-                QrDecoder.decode(matrix)
-            } catch (_: Exception) {
-                null            // no code in this frame — very common, keep scanning
+                val decoded = QrDecoder.decode(matrix)
+                lastStageError = "decoded"
+                decoded
+            } catch (e: Throwable) {
+                // Not finding a code is the normal case, but recording why lets
+                // the on-screen diagnostics distinguish "no code in view" from
+                // "found it but couldn't read it".
+                lastStageError = e.message?.take(40) ?: e.javaClass.simpleName
+                null
             }
 
             // Cheap liveness signal so a stalled pipeline is obvious on screen.
@@ -483,28 +559,32 @@ class ScanToEncodeActivity : BaseNfcActivity() {
                 mainHandler.post { onQrDecoded(text) }
             }
             decoding.set(false)
-        } catch (_: Exception) {
+        } catch (t: Throwable) {
+            // Must be Throwable, not Exception: an OutOfMemoryError here would
+            // leave `decoding` stuck true and kill the scanner permanently.
+            lastStageError = t.message?.take(40) ?: t.javaClass.simpleName
             decoding.set(false)
         } finally {
             try { image.close() } catch (_: Exception) {}
         }
     }
 
-    /** Box-average 2x2 into [out]. Halves the pixel count and smooths noise. */
-    private fun downsampleHalf(src: ByteArray, w: Int, h: Int, out: ByteArray) {
-        val ow = w / 2
-        val oh = h / 2
+    /** Box-average [div]x[div] blocks into [out]; also smooths sensor noise. */
+    private fun downsampleBy(src: ByteArray, w: Int, h: Int, out: ByteArray, div: Int) {
+        val ow = w / div
+        val oh = h / div
+        val area = div * div
         for (y in 0 until oh) {
-            val r0 = (y * 2) * w
-            val r1 = r0 + w
             val o = y * ow
+            val baseRow = y * div
             for (x in 0 until ow) {
-                val i = x * 2
-                val a = src[r0 + i].toInt() and 0xFF
-                val b = src[r0 + i + 1].toInt() and 0xFF
-                val c = src[r1 + i].toInt() and 0xFF
-                val d = src[r1 + i + 1].toInt() and 0xFF
-                out[o + x] = ((a + b + c + d) shr 2).toByte()
+                var sum = 0
+                val baseCol = x * div
+                for (dy in 0 until div) {
+                    val r = (baseRow + dy) * w + baseCol
+                    for (dx in 0 until div) sum += src[r + dx].toInt() and 0xFF
+                }
+                out[o + x] = (sum / area).toByte()
             }
         }
     }
@@ -618,8 +698,9 @@ class ScanToEncodeActivity : BaseNfcActivity() {
             Phase.SCANNING -> {
                 statusTitle.text = "Point at a QR code"
                 statusTitle.setTextColor(getColor(R.color.brand_blue))
-                statusDetail.text = "Hold the code inside the square. Detection is automatic." +
-                        if (analysisFps > 0) "   ·   ${analysisFps} fps" else ""
+                statusDetail.text = "Hold the code inside the square. Detection is automatic."
+                diagView.text = "in ${analysisSize.width}×${analysisSize.height} → $analysisDims · " +
+                        "${analysisFps} fps · ${framesAnalysed} frames · $lastStageError"
                 payloadView.visibility = View.GONE
                 actionBtn.text = "Scanning…"
             }
