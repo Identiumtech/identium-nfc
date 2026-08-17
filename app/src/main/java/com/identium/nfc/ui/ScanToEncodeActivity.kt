@@ -2,6 +2,7 @@ package com.identium.nfc.ui
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -42,6 +43,8 @@ import com.identium.nfc.util.qr.QrDecoder
 import com.identium.nfc.util.qr.QrDetector
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Scan to encode — read a QR code with the camera and write its contents
@@ -117,6 +120,7 @@ class ScanToEncodeActivity : BaseNfcActivity() {
     private var lastFpsStamp = 0L
     @Volatile private var analysisFps = 0
     @Volatile private var analysisDims = "—"
+    @Volatile private var dumpRequested = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -166,11 +170,23 @@ class ScanToEncodeActivity : BaseNfcActivity() {
         previewFrame.addView(reticle, android.widget.FrameLayout.LayoutParams(
             dp(220), dp(220), Gravity.CENTER))
 
+        val previewButtons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         torchBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             text = "Torch"
             setOnClickListener { toggleTorch() }
         }
-        previewFrame.addView(torchBtn, android.widget.FrameLayout.LayoutParams(
+        val dumpBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = "Send frame"
+            setOnClickListener {
+                dumpRequested = true
+                toast("Capturing the next frame…")
+            }
+        }
+        previewButtons.addView(dumpBtn)
+        previewButtons.addView(torchBtn, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { marginStart = dp(8) })
+        previewFrame.addView(previewButtons, android.widget.FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM or Gravity.END
         ).apply { setMargins(0, 0, dp(12), dp(12)) })
@@ -513,23 +529,50 @@ class ScanToEncodeActivity : BaseNfcActivity() {
             // 1280x720 or larger, and detection cost is linear in pixels.
             var div = 1
             while ((width / div) * (height / div) > TARGET_ANALYSIS_PIXELS && div < 6) div++
-            val aW = width / div
-            val aH = height / div
-            val work = workBuf?.takeIf { it.size >= aW * aH }
-                ?: ByteArray(aW * aH).also { workBuf = it }
+            val fullW = width / div
+            val fullH = height / div
 
-            // Two passes alternate so both framings work without doubling cost:
-            //  - even frames: whole frame scaled down (code fills the view)
-            //  - odd frames : centre crop at full resolution (code small/far)
+            // Reticle region: the centred square covering 75% of the short
+            // side — i.e. roughly what the on-screen guide frames.
+            val shortSide = min(width, height)
+            val cropSize = (shortSide * 3) / 4
+            var cropStep = 1
+            while ((cropSize / cropStep) * (cropSize / cropStep) > TARGET_ANALYSIS_PIXELS &&
+                cropStep < 6) cropStep++
+            val cropOut = cropSize / cropStep
+
+            val needed = max(fullW * fullH, cropOut * cropOut)
+            val work = workBuf?.takeIf { it.size >= needed }
+                ?: ByteArray(needed).also { workBuf = it }
+
+            // Alternate two framings so both a code that fills the view and a
+            // smaller one inside the guide square are covered:
+            //  - even frames: whole frame scaled to the pixel budget
+            //  - odd frames : the reticle square, scaled to the budget, which
+            //    keeps far more resolution on what the user is actually aiming
+            //    at than the old small centre window did.
             frameCounter++
-            if (div == 1) {
-                System.arraycopy(luma, 0, work, 0, aW * aH)
-            } else if (frameCounter % 2 == 0) {
-                downsampleBy(luma, width, height, work, div)
+            val aW: Int
+            val aH: Int
+            if (frameCounter % 2 == 0 || cropOut < 60) {
+                aW = fullW; aH = fullH
+                if (div == 1) System.arraycopy(luma, 0, work, 0, aW * aH)
+                else downsampleBy(luma, width, height, work, div)
+                analysisDims = "${aW}×${aH} full"
             } else {
-                centreCrop(luma, width, height, work, aW, aH)
+                aW = cropOut; aH = cropOut
+                cropSquareScaled(luma, width, height, work, cropSize, cropStep)
+                analysisDims = "${aW}×${aH} zoom"
             }
-            analysisDims = "${aW}×${aH}"
+
+            // Support hook: dump the exact buffer the detector is given, so a
+            // failing real-world frame can be reproduced off-device instead of
+            // guessed at.
+            if (dumpRequested) {
+                dumpRequested = false
+                val snapshot = work.copyOf(aW * aH)
+                mainHandler.post { saveDebugFrame(snapshot, aW, aH) }
+            }
 
             framesAnalysed++
             val text = try {
@@ -589,12 +632,30 @@ class ScanToEncodeActivity : BaseNfcActivity() {
         }
     }
 
-    /** Copy the centre [cw]x[ch] region at full resolution. */
-    private fun centreCrop(src: ByteArray, w: Int, h: Int, out: ByteArray, cw: Int, ch: Int) {
-        val left = (w - cw) / 2
-        val top = (h - ch) / 2
-        for (y in 0 until ch) {
-            System.arraycopy(src, (top + y) * w + left, out, y * cw, cw)
+    /**
+     * Box-average a centred [cropSize] square down by [step]. Averaging rather
+     * than nearest-neighbour matters: point-sampling a QR aliases the module
+     * grid and destroys the finder patterns.
+     */
+    private fun cropSquareScaled(
+        src: ByteArray, w: Int, h: Int, out: ByteArray, cropSize: Int, step: Int
+    ) {
+        val cx = (w - cropSize) / 2
+        val cy = (h - cropSize) / 2
+        val outSide = cropSize / step
+        val area = step * step
+        for (y in 0 until outSide) {
+            val o = y * outSide
+            val baseRow = cy + y * step
+            for (x in 0 until outSide) {
+                var sum = 0
+                val baseCol = cx + x * step
+                for (dy in 0 until step) {
+                    val r = (baseRow + dy) * w + baseCol
+                    for (dx in 0 until step) sum += src[r + dx].toInt() and 0xFF
+                }
+                out[o + x] = (sum / area).toByte()
+            }
         }
     }
 
@@ -744,6 +805,37 @@ class ScanToEncodeActivity : BaseNfcActivity() {
                 if (success) vib.vibrate(60) else vib.vibrate(longArrayOf(0, 80, 90, 80), -1)
             }
         } catch (_: Exception) {}
+    }
+
+    /**
+     * Write the analysis buffer out as a PNG and offer to share it. This is
+     * the exact greyscale image the detector was given, so a frame that fails
+     * in the field can be replayed against the decoder offline.
+     */
+    private fun saveDebugFrame(luma: ByteArray, w: Int, h: Int) {
+        try {
+            val pixels = IntArray(w * h)
+            for (i in 0 until w * h) {
+                val v = luma[i].toInt() and 0xFF
+                pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+            }
+            val bmp = android.graphics.Bitmap.createBitmap(pixels, w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            val file = java.io.File(cacheDir, "identium-scan-frame-${System.currentTimeMillis()}.png")
+            java.io.FileOutputStream(file).use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this, "$packageName.fileprovider", file
+            )
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Identium NFC scan frame ${w}x$h")
+                putExtra(Intent.EXTRA_TEXT,
+                    "Analysis frame ${w}x$h · last stage: $lastStageError · ${analysisFps} fps")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }, "Send debug frame"))
+        } catch (e: Exception) {
+            toast("Could not save frame: ${e.message}")
+        }
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
