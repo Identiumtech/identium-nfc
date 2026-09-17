@@ -201,6 +201,16 @@ object TagOperations {
                 return WriteResult.error("NDEF format error: ${e.message}")
             } catch (e: IOException) {
                 return WriteResult.error("I/O error: ${e.message}")
+            } catch (e: SecurityException) {
+                // "Tag out of date" — the Tag handle belongs to an earlier
+                // discovery. Thrown by connect() during rapid tapping, and
+                // previously escaped this method entirely.
+                return WriteResult.error("Tag handle expired — lift the tag and tap again")
+            } catch (e: Exception) {
+                // Nothing may escape: a throw here aborts the caller's result
+                // callback, which in bulk mode means no log row and a session
+                // that never re-arms.
+                return WriteResult.error(e.message ?: e.javaClass.simpleName)
             } finally {
                 runCatching { ndef.close() }
             }

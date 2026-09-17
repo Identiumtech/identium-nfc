@@ -98,8 +98,17 @@ abstract class BaseNfcActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val result = try {
                 withContext(Dispatchers.IO) { action.work(tag) }
-            } catch (e: Exception) {
-                SuccessDialog.showError(this@BaseNfcActivity, "Operation failed", e.message ?: e.javaClass.simpleName)
+            } catch (e: Throwable) {
+                // A caller that supplies onError owns the failure — for a
+                // continuous flow like bulk write, showing a dialog and
+                // returning here silently ended the session, because the
+                // result callback that re-arms the next tap never ran.
+                val handler = action.onError
+                if (handler != null) handler(e)
+                else SuccessDialog.showError(
+                    this@BaseNfcActivity, "Operation failed",
+                    e.message ?: e.javaClass.simpleName
+                )
                 return@launch
             }
             action.onResult(result)
@@ -144,7 +153,8 @@ abstract class BaseNfcActivity : AppCompatActivity() {
      */
     protected fun <R> runOnNextTapSilently(
         work: (Tag) -> R,
-        onResult: (R) -> Unit
+        onResult: (R) -> Unit,
+        onError: ((Throwable) -> Unit)? = null
     ) {
         if (nfcAdapter == null) {
             SuccessDialog.showError(this, "NFC unavailable", "This device does not support NFC.")
@@ -161,7 +171,7 @@ abstract class BaseNfcActivity : AppCompatActivity() {
                 .show()
             return
         }
-        pending = PendingTagAction(work, onResult)
+        pending = PendingTagAction(work, onResult, onError)
     }
 
     protected fun cancelPending() {
@@ -210,6 +220,8 @@ abstract class BaseNfcActivity : AppCompatActivity() {
 
     private data class PendingTagAction<R>(
         val work: (Tag) -> R,
-        val onResult: (R) -> Unit
+        val onResult: (R) -> Unit,
+        /** When set, takes over failure handling instead of the error dialog. */
+        val onError: ((Throwable) -> Unit)? = null
     )
 }

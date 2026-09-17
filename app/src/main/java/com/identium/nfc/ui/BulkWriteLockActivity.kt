@@ -98,6 +98,12 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     private lateinit var stopBtn: MaterialButton
 
     private var running = false
+    /**
+     * Taps the app actually received. Shown during a session so "nothing is
+     * happening" can be told apart: 0 means the tag never reached the app,
+     * non-zero means it did and the write itself is failing.
+     */
+    @Volatile private var tapsReceived = 0
     private var sessionOk = 0
     private var sessionFail = 0
     private var baseUrl = ""
@@ -651,7 +657,9 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         statLocked.text = c.locked.toString()
         statFail.text = c.failed.toString()
         sessionLine.text = if (running)
-            "This session: $sessionOk written" + (if (sessionFail > 0) " · $sessionFail failed" else "")
+            "This session: $sessionOk written" +
+                (if (sessionFail > 0) " · $sessionFail failed" else "") +
+                " · $tapsReceived taps"
         else "All-time: ${c.written} written · ${c.locked} locked · ${c.failed} failed"
         // The table is always on screen — only its contents swap between the
         // empty-state hint and the rows.
@@ -694,10 +702,22 @@ class BulkWriteLockActivity : BaseNfcActivity() {
             .show()
     }
 
+    /** Turn a raw exception into something an operator can act on. */
+    private fun friendlyError(t: Throwable): String = when {
+        t is android.nfc.TagLostException ->
+            "Tag moved away too soon — hold it still against the phone"
+        t is SecurityException ->
+            "Tag handle expired — lift the tag and tap again"
+        t is java.io.IOException ->
+            "Could not talk to the tag — hold it still and retry"
+        else -> t.message ?: t.javaClass.simpleName
+    }
+
     private fun startSession() {
         running = true
         sessionOk = 0
         sessionFail = 0
+        tapsReceived = 0
 
         // Snapshot the options once — the write runs on a background thread
         // and must not read View state.
@@ -756,7 +776,9 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         showArmedState()
         runOnNextTapSilently(
             work = { tag ->
-                val uidHex = HexUtil.toHex(tag.id, ":")
+                tapsReceived++
+                val uidHex = runCatching { HexUtil.toHex(tag.id, ":") }.getOrDefault("—")
+                try {
 
                 // Guard 1: this exact tag is already in our log.
                 val previous = BulkLog.findByUid(this, uidHex)
@@ -791,6 +813,14 @@ class BulkWriteLockActivity : BaseNfcActivity() {
                             if (res.success) "" else res.message
                         )
                     }
+                }
+
+                } catch (t: Throwable) {
+                    // Nothing may escape this block. An exception here used to
+                    // abort onResult, which meant the tap was never logged AND
+                    // the session never re-armed — so every later tap silently
+                    // did nothing while the phone still buzzed on detection.
+                    TapResult(uidHex, "", false, BulkLog.Outcome.FAILED, friendlyError(t))
                 }
             },
             onResult = { r ->
@@ -829,6 +859,24 @@ class BulkWriteLockActivity : BaseNfcActivity() {
                 )
 
                 // Re-arm immediately so the next tag can be tapped right away.
+                armNextTag()
+            },
+            // Belt and braces: even if something escapes everything above, the
+            // session must log the tap and stay armed rather than going dead.
+            onError = { t ->
+                sessionFail++
+                buzz(false)
+                showFailureFlash(friendlyError(t))
+                runCatching {
+                    val entry = BulkLog.append(
+                        ctx = this, uid = "—", url = "", locked = false,
+                        success = false, error = friendlyError(t),
+                        outcome = BulkLog.Outcome.FAILED
+                    )
+                    adapter.insertAtTop(entry)
+                    recycler.scrollToPosition(0)
+                    refreshCounters()
+                }
                 armNextTag()
             }
         )
