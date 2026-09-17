@@ -85,6 +85,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     private lateinit var serialPad: TextInputEditText
     private lateinit var serialPreview: TextView
     private lateinit var skipExistingSwitch: MaterialSwitch
+    private lateinit var skipDuplicateSwitch: MaterialSwitch
 
     // table
     private lateinit var tableSection: LinearLayout
@@ -111,6 +112,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     // Snapshotted on Start so the background write block never touches views.
     private var willLock = true
     private var skipExisting = true
+    private var skipDuplicates = true
     private var useCounter = false
 
     private val handler = Handler(Looper.getMainLooper())
@@ -261,10 +263,26 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         panel.addView(buildSerialPanel(), lp().apply { topMargin = dp(16) })
 
         skipExistingSwitch = MaterialSwitch(this).apply {
-            text = "Skip tags that already have data (show error instead)"
+            text = "Skip tags that already have data"
             isChecked = true
         }
         panel.addView(skipExistingSwitch, lp().apply { topMargin = dp(12) })
+
+        // Re-tapping a tag that is already in the log is the normal way to
+        // re-test, so this has to be switchable — with it permanently on, a
+        // tag could only ever be written once and every retry looked like a
+        // write failure.
+        skipDuplicateSwitch = MaterialSwitch(this).apply {
+            text = "Skip tags already written in this log"
+            isChecked = true
+        }
+        panel.addView(skipDuplicateSwitch, lp().apply { topMargin = dp(4) })
+
+        panel.addView(TextView(this).apply {
+            text = "Turn both off to overwrite tags you are re-testing."
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+        }, lp().apply { topMargin = dp(4) })
 
         lockWarning = TextView(this).apply {
             text = "⚠  Locking is irreversible. A locked tag can never be rewritten. " +
@@ -285,12 +303,12 @@ class BulkWriteLockActivity : BaseNfcActivity() {
             else "Start write-only session"
         }
 
-        startBtn = MaterialButton(this).apply {
-            text = "Start write-only session"
-            setIconResource(R.drawable.ic_write)
-            setOnClickListener { confirmStart() }
-        }
-        panel.addView(startBtn, lp().apply { topMargin = dp(16) })
+        // NOTE: the Start button deliberately does NOT live in this panel — it
+        // is pinned in the bottom button bar instead. It used to sit here, and
+        // adding the write-mode selector pushed it off the bottom of the
+        // scroll area: the session simply could not be started without
+        // discovering that the panel scrolled, so taps did nothing and the
+        // only feedback was the phone's own NFC buzz.
 
         setupScroll = androidx.core.widget.NestedScrollView(this).apply { addView(panel) }
         return setupScroll
@@ -525,6 +543,15 @@ class BulkWriteLockActivity : BaseNfcActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), dp(16))
         }
+        // Pinned so it can never scroll out of reach, whatever is added to the
+        // setup panel above.
+        startBtn = MaterialButton(this).apply {
+            text = "Start write-only session"
+            setIconResource(R.drawable.ic_write)
+            setOnClickListener { confirmStart() }
+        }
+        bar.addView(startBtn, lp())
+
         stopBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             text = "Finish session"
             visibility = View.GONE
@@ -723,6 +750,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         // and must not read View state.
         willLock = rbWriteLock.isChecked
         skipExisting = skipExistingSwitch.isChecked
+        skipDuplicates = skipDuplicateSwitch.isChecked
 
         // {n} substitution is driven by the URL itself here. Requiring the
         // global Settings toggle as well was a trap — a URL with {n} would
@@ -791,15 +819,16 @@ class BulkWriteLockActivity : BaseNfcActivity() {
                 }
 
                 when {
-                    previous != null -> TapResult(
+                    skipDuplicates && previous != null -> TapResult(
                         uidHex, previous.url, false,
                         BulkLog.Outcome.DUPLICATE,
-                        "Already written as #${previous.seq}"
+                        "Already written as #${previous.seq} — turn off " +
+                            "\"Skip tags already written\" to rewrite it"
                     )
                     skipExisting && hasData -> TapResult(
                         uidHex, "", false,
                         BulkLog.Outcome.ALREADY_HAS_DATA,
-                        "Tag already has data — not overwritten"
+                        "Tag already has data — turn off \"Skip tags that already have data\" to overwrite"
                     )
                     else -> {
                         val url = if (useCounter)
