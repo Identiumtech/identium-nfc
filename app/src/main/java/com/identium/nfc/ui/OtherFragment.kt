@@ -85,7 +85,7 @@ class OtherFragment : Fragment() {
             Action("Scan to encode", "Scan a QR code and write it straight to an NFC tag — single or continuous") {
                 startActivity(Intent(requireContext(), ScanToEncodeActivity::class.java))
             },
-            Action("Bulk write & lock", "Same URL on tag after tag — writes, locks and re-arms in one tap") {
+            Action("Bulk write", "Same URL on tag after tag — write only, or write and lock, in one tap") {
                 startActivity(Intent(requireContext(), BulkWriteLockActivity::class.java))
             },
             Action("Generate QR code", "Show the same data as a printable QR — for customers without NFC tags") {

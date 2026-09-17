@@ -17,6 +17,8 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -58,7 +60,10 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     private lateinit var setupScroll: View
     private lateinit var urlField: TextInputEditText
     private lateinit var urlLayout: TextInputLayout
-    private lateinit var lockSwitch: MaterialSwitch
+    private lateinit var modeGroup: RadioGroup
+    private lateinit var rbWriteOnly: RadioButton
+    private lateinit var rbWriteLock: RadioButton
+    private lateinit var lockWarning: TextView
 
     // running
     private lateinit var runPanel: LinearLayout
@@ -108,7 +113,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Bulk write & lock"
+        title = "Bulk write"
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         val root = LinearLayout(this).apply {
@@ -150,7 +155,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
     private fun buildToolbar(): View {
         val toolbar = com.google.android.material.appbar.MaterialToolbar(this).apply {
             setBackgroundResource(R.drawable.bg_brand_header)
-            title = "Bulk write & lock"
+            title = "Bulk write"
             setTitleTextColor(getColor(R.color.white))
             navigationIcon = androidx.appcompat.content.res.AppCompatResources
                 .getDrawable(context, androidx.appcompat.R.drawable.abc_ic_ab_back_material)
@@ -164,6 +169,14 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         return toolbar
     }
 
+    private fun sectionLabel(text: String) = TextView(this).apply {
+        this.text = text.uppercase()
+        textSize = 12f
+        letterSpacing = 0.08f
+        setTypeface(typeface, android.graphics.Typeface.BOLD)
+        setTextColor(getColor(R.color.brand_blue))
+    }
+
     private fun buildSetupPanel(): View {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -171,8 +184,9 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         }
 
         panel.addView(TextView(this).apply {
-            text = "Write the same URL to tag after tag. Each tap writes, locks and " +
-                    "re-arms instantly — no dialogs in between."
+            text = "Write the same URL to tag after tag. Each tap writes and re-arms " +
+                    "instantly — no dialogs in between. Choose below whether each tag is " +
+                    "locked permanently or left rewritable."
             setTextColor(getColor(R.color.text_secondary))
         }, lp().apply { bottomMargin = dp(14) })
 
@@ -189,31 +203,84 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         urlLayout.addView(urlField)
         panel.addView(urlLayout, lp())
 
-        panel.addView(buildSerialPanel(), lp().apply { topMargin = dp(14) })
+        // Write mode. This was previously a single "lock" switch, which read as
+        // if locking were the only thing this screen did — two explicit choices
+        // make write-only a first-class option rather than a hidden opt-out.
+        panel.addView(sectionLabel("Write mode"), lp().apply { topMargin = dp(16) })
 
-        lockSwitch = MaterialSwitch(this).apply {
-            text = "Lock each tag after writing (permanent)"
-            isChecked = true
+        val modeBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card_outlined)
+            setPadding(dp(8), dp(4), dp(12), dp(4))
         }
-        panel.addView(lockSwitch, lp().apply { topMargin = dp(12) })
+        modeGroup = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+
+        rbWriteOnly = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "Write only — tag stays rewritable"
+            textSize = 15f
+            setPadding(dp(8), dp(10), 0, dp(2))
+        }
+        val writeOnlyHint = TextView(this).apply {
+            text = "Writes the URL and leaves the tag open, so it can be corrected or reused."
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+            setPadding(dp(44), 0, 0, dp(8))
+        }
+
+        rbWriteLock = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "Write & lock — permanent"
+            textSize = 15f
+            setPadding(dp(8), dp(6), 0, dp(2))
+        }
+        val writeLockHint = TextView(this).apply {
+            text = "Writes the URL then locks the tag so it can never be rewritten."
+            textSize = 12f
+            setTextColor(getColor(R.color.text_secondary))
+            setPadding(dp(44), 0, 0, dp(8))
+        }
+
+        modeGroup.addView(rbWriteOnly, RadioGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        modeGroup.addView(writeOnlyHint, RadioGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        modeGroup.addView(rbWriteLock, RadioGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        modeGroup.addView(writeLockHint, RadioGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        modeBox.addView(modeGroup, lp())
+        panel.addView(modeBox, lp())
+
+        panel.addView(buildSerialPanel(), lp().apply { topMargin = dp(16) })
 
         skipExistingSwitch = MaterialSwitch(this).apply {
             text = "Skip tags that already have data (show error instead)"
             isChecked = true
         }
-        panel.addView(skipExistingSwitch, lp().apply { topMargin = dp(4) })
+        panel.addView(skipExistingSwitch, lp().apply { topMargin = dp(12) })
 
-        panel.addView(TextView(this).apply {
+        lockWarning = TextView(this).apply {
             text = "⚠  Locking is irreversible. A locked tag can never be rewritten. " +
                     "Test on one tag before running a batch."
             setTextColor(getColor(R.color.brand_red))
             textSize = 13f
             setBackgroundResource(R.drawable.bg_brand_chip_red)
             setPadding(dp(12), dp(10), dp(12), dp(10))
-        }, lp().apply { topMargin = dp(12) })
+        }
+        panel.addView(lockWarning, lp().apply { topMargin = dp(12) })
+
+        // Default to the safe option; the warning only appears when it applies.
+        rbWriteOnly.isChecked = true
+        lockWarning.visibility = View.GONE
+        modeGroup.setOnCheckedChangeListener { _, _ ->
+            lockWarning.visibility = if (rbWriteLock.isChecked) View.VISIBLE else View.GONE
+            startBtn.text = if (rbWriteLock.isChecked) "Start write & lock session"
+            else "Start write-only session"
+        }
 
         startBtn = MaterialButton(this).apply {
-            text = "Start bulk session"
+            text = "Start write-only session"
             setIconResource(R.drawable.ic_write)
             setOnClickListener { confirmStart() }
         }
@@ -611,7 +678,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         urlLayout.error = null
         baseUrl = normalise(url)
 
-        val willLock = lockSwitch.isChecked
+        val willLock = rbWriteLock.isChecked
         MaterialAlertDialogBuilder(this)
             .setTitle(if (willLock) "Start write & lock session?" else "Start bulk write session?")
             .setMessage(
@@ -634,7 +701,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
         // Snapshot the options once — the write runs on a background thread
         // and must not read View state.
-        willLock = lockSwitch.isChecked
+        willLock = rbWriteLock.isChecked
         skipExisting = skipExistingSwitch.isChecked
 
         // {n} substitution is driven by the URL itself here. Requiring the
@@ -782,7 +849,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
         statusIcon.text = "📲"
         statusTitle.text = "Tap a tag"
         statusTitle.setTextColor(getColor(R.color.brand_blue))
-        statusDetail.text = if (lockSwitch.isChecked)
+        statusDetail.text = if (willLock)
             "Writes and locks instantly, then re-arms."
         else "Writes instantly, then re-arms."
         statusPanel.alpha = 1f
@@ -790,7 +857,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
 
     private fun showSuccessFlash(url: String) {
         statusIcon.text = "✓"
-        statusTitle.text = if (lockSwitch.isChecked) "Written & locked" else "Written"
+        statusTitle.text = if (willLock) "Written & locked" else "Written"
         statusTitle.setTextColor(getColor(R.color.success))
         statusDetail.text = url
         flash()
