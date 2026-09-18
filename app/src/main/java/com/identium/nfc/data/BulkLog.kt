@@ -95,9 +95,34 @@ object BulkLog {
      * rows, so a UID written more than [MAX] tags ago won't be found —
      * enough to catch a re-tap during a production run.
      */
-    fun findByUid(ctx: Context, uid: String): Entry? {
+    /**
+     * The most recent **successful** write for this UID, or null.
+     *
+     * Only WRITTEN rows count. The duplicate guard exists to stop a tag being
+     * programmed twice, so an attempt that wrote nothing — FAILED, DUPLICATE
+     * or ALREADY_HAS_DATA — must never match. Matching any row meant a single
+     * failed tap blocked that tag forever: the retry was reported as a
+     * duplicate, and because each blocked attempt logs its own row the tag
+     * accumulated more matches and could never be written.
+     *
+     * [load] is newest-first, so this returns the latest successful write.
+     */
+    fun findWrittenByUid(ctx: Context, uid: String): Entry? {
         if (uid.isBlank()) return null
-        return load(ctx).firstOrNull { it.uid == uid }
+        return load(ctx).firstOrNull {
+            it.uid == uid && it.success && it.outcome == Outcome.WRITTEN
+        }
+    }
+
+    /**
+     * True when this UID has a failed attempt on record — i.e. the operator is
+     * retrying a tag that did not take. Used to stand down the
+     * "already has data" guard, since a half-written tag would otherwise be
+     * refused on the retry as well.
+     */
+    fun hasFailedAttempt(ctx: Context, uid: String): Boolean {
+        if (uid.isBlank()) return false
+        return load(ctx).any { it.uid == uid && it.outcome == Outcome.FAILED }
     }
 
     /**

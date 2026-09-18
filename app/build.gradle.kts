@@ -24,8 +24,8 @@ android {
         applicationId = "com.identium.nfc"
         minSdk = 21
         targetSdk = 34
-        versionCode = 13
-        versionName = "1.6.2"
+        versionCode = 14
+        versionName = "1.6.3"
 
         vectorDrawables { useSupportLibrary = true }
     }

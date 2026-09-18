@@ -808,8 +808,15 @@ class BulkWriteLockActivity : BaseNfcActivity() {
                 val uidHex = runCatching { HexUtil.toHex(tag.id, ":") }.getOrDefault("—")
                 try {
 
-                // Guard 1: this exact tag is already in our log.
-                val previous = BulkLog.findByUid(this, uidHex)
+                // Guard 1: this tag was already written SUCCESSFULLY before.
+                // Failed and skipped attempts must not match, or one bad tap
+                // would block that tag from ever being retried.
+                val previous = BulkLog.findWrittenByUid(this, uidHex)
+
+                // A tag with a failed attempt on record is one the operator is
+                // deliberately retrying, so don't also refuse it for carrying
+                // data — a partly-written tag would otherwise be a dead end.
+                val retryingAfterFailure = BulkLog.hasFailedAttempt(this, uidHex)
 
                 // Guard 2: the tag already carries NDEF data. cachedNdefMessage
                 // is populated at discovery, so this costs no extra round trip.
@@ -825,7 +832,7 @@ class BulkWriteLockActivity : BaseNfcActivity() {
                         "Already written as #${previous.seq} — turn off " +
                             "\"Skip tags already written\" to rewrite it"
                     )
-                    skipExisting && hasData -> TapResult(
+                    skipExisting && hasData && !retryingAfterFailure -> TapResult(
                         uidHex, "", false,
                         BulkLog.Outcome.ALREADY_HAS_DATA,
                         "Tag already has data — turn off \"Skip tags that already have data\" to overwrite"
